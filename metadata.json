@@ -1,0 +1,6 @@
+{
+  "name": "Quran Shorts Maker",
+  "description": "Create beautiful vertical Quran videos for TikTok, YouTube Shorts, Reels, and Facebook Reels featuring authentic Uthmani script, customizable background videos, templates, recitation audio, and smart AI auto-generation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
