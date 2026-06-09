@@ -155,13 +155,23 @@ export function getReciterAudioCandidates(
   const islamicBitrate = reciterId === "ar.abdulsamad" ? "64" : "128";
   const islamicNetworkUrl = `https://cdn.islamic.network/quran/audio/${islamicBitrate}/${reciterId}/${absoluteAyahIndex}.mp3`;
 
-  // 1. Proxied official Islamic Network CDN URL (Highly reliable)
-  if (reciterId !== "ar.alijaber") {
-    urls.push(`/api/audio-proxy?url=${encodeURIComponent(islamicNetworkUrl)}`);
-  }
+  // Detect static hosting environments (Netlify, Vercel, GitHub Pages) or dynamic checked backend absences
+  const isStaticPlatform = typeof window !== "undefined" && (
+    window.location.hostname.includes("netlify.app") ||
+    window.location.hostname.includes("vercel.app") ||
+    window.location.hostname.includes("github.io") ||
+    (window as any).__hasBackend === false
+  );
 
-  // 2. Proxied standard everyayah.com mp3 file
-  urls.push(`/api/audio-proxy?url=${encodeURIComponent(everyAyahUrl)}`);
+  if (!isStaticPlatform) {
+    // 1. Proxied official Islamic Network CDN URL (Highly reliable)
+    if (reciterId !== "ar.alijaber") {
+      urls.push(`/api/audio-proxy?url=${encodeURIComponent(islamicNetworkUrl)}`);
+    }
+
+    // 2. Proxied standard everyayah.com mp3 file
+    urls.push(`/api/audio-proxy?url=${encodeURIComponent(everyAyahUrl)}`);
+  }
 
   // 3. Fallback: Direct Islamic Network CDN URL
   if (reciterId !== "ar.alijaber") {

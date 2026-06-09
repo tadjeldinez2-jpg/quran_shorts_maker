@@ -209,13 +209,46 @@ export default function ControlPanel({
     const fetchSurah = async () => {
       setIsLoadingSurahVerses(true);
       try {
-        const resp = await fetch(`/api/quran/surah?surah=${selectedSurahNum}`);
-        const result = await resp.json();
-        if (active && result.success && result.ayahs) {
-          setSurahVerses(result.ayahs);
+        let ayahs = null;
+        try {
+          const resp = await fetch(`/api/quran/surah?surah=${selectedSurahNum}`);
+          if (resp.ok) {
+            const result = await resp.json();
+            if (result.success && result.ayahs) {
+              ayahs = result.ayahs;
+            }
+          }
+        } catch (e) {
+          console.warn("Backend surah fetch failed, falling back to direct cloud API:", e);
+        }
+
+        // Direct fallback if backend was unavailable (e.g. on Netlify or Vercel)
+        if (!ayahs) {
+          const response = await fetch(`https://api.alquran.cloud/v1/surah/${selectedSurahNum}/quran-uthmani`);
+          const data = await response.json();
+          if (data.code === 200 && data.data && data.data.ayahs) {
+            ayahs = data.data.ayahs.map((ayah: any) => {
+              let verseText = ayah.text || "";
+              const aNum = Number(ayah.numberInSurah);
+              if (selectedSurahNum !== 1 && selectedSurahNum !== 9 && aNum === 1) {
+                const words = verseText.trim().split(/\s+/);
+                if (words.length >= 4 && (words[0].startsWith("بِسْمِ") || words[0] === "بِسْمِ")) {
+                  verseText = words.slice(4).join(" ");
+                }
+              }
+              return {
+                numberInSurah: aNum,
+                text: verseText
+              };
+            });
+          }
+        }
+
+        if (active && ayahs) {
+          setSurahVerses(ayahs);
         }
       } catch (err) {
-        console.error("Failed to load surah verses:", err);
+        console.error("Failed to load surah verses fully:", err);
       } finally {
         if (active) setIsLoadingSurahVerses(false);
       }
@@ -811,20 +844,53 @@ export default function ControlPanel({
             throw new Error(result.error || "Server lookup failed");
           }
         } catch (err) {
-          const preloaded = PRELOADED_VERSES.find(v => v.surahNumber === sNum && v.numberInSurah === aNum);
-          if (preloaded) {
-            verseData = preloaded;
-          } else {
-            const fallbackSurah = quranSurahs.find(s => s.number === sNum);
-            verseData = {
-              surahNumber: sNum,
-              numberInSurah: aNum,
-              text: sNum === 18 ? "إِذْ أَوَى الْفِتْيَةُ إِلَى الْكَهْفِ فَقَالُوا رَبَّنَا آتِنَا مِن لَّدُنكَ رَحْمَةً" : "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ",
-              translation: `Ayah ${aNum} translation [Surat ${fallbackSurah?.englishName || "Quran"}].`,
-              audio: `https://cdn.islamic.network/quran/audio/128/ar.alafasy/${sNum + aNum}.mp3`,
-              surahName: fallbackSurah?.englishName || "Surah",
-              absoluteAyahIndex: sNum * 7 + aNum
-            };
+          try {
+            // High reliability static/client-side fallback to Alquran.cloud when hosted on Netlify
+            const arRes = await fetch(`https://api.alquran.cloud/v1/ayah/${sNum}:${aNum}/quran-uthmani`);
+            const arData = await arRes.json();
+            const transRes = await fetch(`https://api.alquran.cloud/v1/ayah/${sNum}:${aNum}/en.sahih`);
+            const transData = await transRes.json();
+
+            if (arData.code === 200 && transData.code === 200) {
+              const absoluteIndex = arData.data.number || 1;
+              let verseText = arData.data.text || "";
+
+              if (sNum !== 1 && sNum !== 9 && aNum === 1) {
+                const words = verseText.trim().split(/\s+/);
+                if (words.length >= 4 && (words[0].startsWith("بِسْمِ") || words[0] === "بِسْمِ")) {
+                  verseText = words.slice(4).join(" ");
+                }
+              }
+
+              verseData = {
+                surahNumber: sNum,
+                numberInSurah: aNum,
+                text: verseText,
+                translation: transData.data.text,
+                audio: `https://cdn.islamic.network/quran/audio/128/ar.alafasy/${absoluteIndex}.mp3`,
+                surahName: arData.data.surah.englishName,
+                absoluteAyahIndex: absoluteIndex
+              };
+            } else {
+              throw new Error("Direct cloud query returned invalid code");
+            }
+          } catch (cloudErr) {
+            console.warn("Direct Cloud fallback failed. Loading local static layouts:", cloudErr);
+            const preloaded = PRELOADED_VERSES.find(v => v.surahNumber === sNum && v.numberInSurah === aNum);
+            if (preloaded) {
+              verseData = preloaded;
+            } else {
+              const fallbackSurah = quranSurahs.find(s => s.number === sNum);
+              verseData = {
+                surahNumber: sNum,
+                numberInSurah: aNum,
+                text: sNum === 18 ? "إِذْ أَوَى الْفِتْيَةُ إِلَى الْكَهْفِ فَقَالُوا رَبَّنَا آتِنَا مِن لَّدُنكَ رَحْمَةً" : "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ",
+                translation: `Ayah ${aNum} translation [Surat ${fallbackSurah?.englishName || "Quran"}].`,
+                audio: `https://cdn.islamic.network/quran/audio/128/ar.alafasy/${sNum + aNum}.mp3`,
+                surahName: fallbackSurah?.englishName || "Surah",
+                absoluteAyahIndex: sNum * 7 + aNum
+              };
+            }
           }
         }
 

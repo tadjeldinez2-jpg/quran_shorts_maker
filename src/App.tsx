@@ -59,6 +59,26 @@ export default function App() {
   
   const audiosRef = useRef<HTMLAudioElement[]>([]);
 
+  // Proactively check for custom Node Express backend on startup
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        const resp = await fetch("/api/quran/surah?surah=1");
+        if (resp.headers.get("content-type")?.includes("application/json")) {
+          const data = await resp.json();
+          if (data && data.success) {
+            (window as any).__hasBackend = true;
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn("Custom backend is not available on this host. Running in robust pure client-side mode.");
+      }
+      (window as any).__hasBackend = false;
+    };
+    checkBackend();
+  }, []);
+
   // Cache refs to solve any stale closure bugs in callback listeners & requestAnimationFrame loop
   const isPlayingRef = useRef<boolean>(isPlaying);
   useEffect(() => {
@@ -526,8 +546,107 @@ export default function App() {
         throw new Error(data.error || "Fail to fetch");
       }
     } catch (err: any) {
-      console.error("AI recommendation failed:", err);
-      setAiSuccessMessage("⚠️ Connection to design server was slow. Try again!");
+      console.warn("API recommendation server unavailable, executing beautiful client-side heuristic backup:", err);
+      try {
+        const combinedTranslation = selectedVerses.map(v => v.verse.translation).join(" ");
+        const textLower = combinedTranslation.toLowerCase();
+        let bgVideoId = "clouds-sunset";
+        let templateId = "minimal-dark";
+        let textColor = "#FFFFFF";
+        let textShadowColor = "rgba(0, 0, 0, 0.85)";
+        let textGlowColor = "rgba(255, 255, 255, 0.1)";
+        let textGlowBlur = 0;
+        let videoOpacity = 85;
+        let videoBrightness = 32;
+        let textPosition = 50;
+        let aestheticTitle = "Sovereign Divine Wisdom";
+        let reflectionPrompt = "A profound divine reminder calling hearts back to guidance and patience.";
+
+        if (textLower.includes("water") || textLower.includes("sea") || textLower.includes("ocean") || textLower.includes("river") || textLower.includes("stream")) {
+          bgVideoId = "ocean-aerial";
+          templateId = "nature-reflection";
+          textColor = "#E0F2F1";
+          textGlowColor = "#81C784";
+          textGlowBlur = 4;
+          aestheticTitle = "The Flow of Divine Mercy";
+          reflectionPrompt = "Like pure rainfall and vast seas, Allah's grace revives barren soil and dry hearts.";
+        } else if (textLower.includes("rain") || textLower.includes("drop") || textLower.includes("sky") || textLower.includes("cloud") || textLower.includes("heaven")) {
+          bgVideoId = "rain-window";
+          templateId = "cinematic-black";
+          videoBrightness = 20;
+          videoOpacity = 90;
+          textColor = "#FAFAFA";
+          textGlowColor = "rgba(255, 255, 255, 0.25)";
+          textGlowBlur = 3;
+          aestheticTitle = "Blessings from Above";
+          reflectionPrompt = "Every skyward storm and rainfall shower carries measured provisions for humankind.";
+        } else if (textLower.includes("mountain") || textLower.includes("earth") || textLower.includes("firm") || textLower.includes("rock")) {
+          bgVideoId = "mountain-aerial";
+          templateId = "golden-islamic";
+          textColor = "#F3C65F";
+          textGlowColor = "#D4AF37";
+          textGlowBlur = 5;
+          aestheticTitle = "Steadfast Faith & Pillars";
+          reflectionPrompt = "Anchor your soul in absolute reliance upon the Lord, taller and firmer than mountains.";
+        } else if (textLower.includes("mercy") || textLower.includes("merciful") || textLower.includes("forgive") || textLower.includes("compassion")) {
+          bgVideoId = "forest-sunbeams";
+          templateId = "elegant-white";
+          textColor = "#1E293B";
+          textShadowColor = "rgba(255, 255, 255, 0.7)";
+          videoOpacity = 45;
+          videoBrightness = 85;
+          aestheticTitle = "All-Compassionate Forgiveness";
+          reflectionPrompt = "His doors of mercy are never locked. Drop your burdens and walk into His light.";
+        } else if (textLower.includes("light") || textLower.includes("glowing") || textLower.includes("sun") || textLower.includes("moon") || textLower.includes("star") || textLower.includes("bright")) {
+          bgVideoId = "cinematic-particles";
+          templateId = "golden-islamic";
+          textColor = "#F3C65F";
+          textGlowColor = "#D4AF37";
+          textGlowBlur = 6;
+          aestheticTitle = "The Radiance of Truth";
+          reflectionPrompt = "The light of the Quran penetrates dark thoughts, radiating celestial peace across the soul.";
+        } else if (textLower.includes("believe") || textLower.includes("believers") || textLower.includes("pray") || textLower.includes("mosque") || textLower.includes("worship")) {
+          bgVideoId = "mosque-illumination";
+          templateId = "mosque-night";
+          textColor = "#ECEFF1";
+          textGlowColor = "#4DB6AC";
+          textGlowBlur = 6;
+          aestheticTitle = "Serenade of Divine Worship";
+          reflectionPrompt = "Find ultimate healing, peace, and spiritual refuge within silent heart-felt prostrations.";
+        }
+
+        setSettings((prev) => ({
+          ...prev,
+          textColor,
+          textShadowColor,
+          textShadowBlur: 10,
+          textGlowColor,
+          textGlowBlur,
+          videoOpacity,
+          videoBrightness,
+          textPosition,
+          fontName: "Amiri",
+          showTranslation: true
+        }));
+
+        setAestheticTitle(aestheticTitle);
+        setReflectionPrompt(reflectionPrompt);
+        
+        if (bgVideoId) {
+          const matchingVideo = BACKGROUND_VIDEOS.find(v => v.id === bgVideoId);
+          if (matchingVideo) {
+            setSelectedVideo(matchingVideo);
+            setUploadedVideoUrl(null);
+          }
+        }
+        
+        setIsPlaying(true);
+        setAiSuccessMessage("✨ Core Design matches surah keywords and theological tones successfully!");
+      } catch (fallbackErr) {
+        console.error("Local layout recommendations failed:", fallbackErr);
+        setAiSuccessMessage("⚠️ Connection to design server was slow. Try again!");
+      }
+      setTimeout(() => setAiSuccessMessage(""), 5000);
     } finally {
       setIsAiLoading(false);
     }
