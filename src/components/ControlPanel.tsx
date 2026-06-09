@@ -1489,7 +1489,25 @@ export default function ControlPanel({
         }
         
         if (previewImage) {
-          ctx.drawImage(previewImage, 0, 0, 1080, 1920);
+          if (settings.enableKenBurns) {
+            // Fluctuate between 0 and 1 over a 36-second cycle, matching the CSS animation
+            const kFactor = (Math.sin((activeTime / 36) * Math.PI * 2 - Math.PI / 2) + 1) / 2;
+            const currentScale = 1.0 + kFactor * 0.16; // scales up to 1.16
+            const maxPanX = -0.01 * 1080; // max shift of -1%
+            const maxPanY = -0.015 * 1920; // max shift of -1.5%
+            const currentPanX = kFactor * maxPanX;
+            const currentPanY = kFactor * maxPanY;
+
+            ctx.save();
+            ctx.translate(currentPanX, currentPanY);
+            ctx.translate(540, 960);
+            ctx.scale(currentScale, currentScale);
+            ctx.translate(-540, -960);
+            ctx.drawImage(previewImage, 0, 0, 1080, 1920);
+            ctx.restore();
+          } else {
+            ctx.drawImage(previewImage, 0, 0, 1080, 1920);
+          }
         } else if (previewVideo) {
           // Loop background video seamlessly without choking performance
           if (previewVideo.duration) {
@@ -2270,6 +2288,26 @@ export default function ControlPanel({
                   onChange={(e) => setSettings(prev => ({ ...prev, videoOpacity: Number(e.target.value) }))}
                   className="w-full"
                 />
+              </div>
+
+              {/* Ken Burns Effect Toggle */}
+              <div className="pt-3 border-t border-white/5 flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-semibold text-slate-200">Ken Burns Motion Effect</span>
+                  <span className="text-[9px] text-slate-400">Adds beautiful slow panning and zooming for photo backgrounds</span>
+                </div>
+                <button
+                  onClick={() => setSettings(prev => ({ ...prev, enableKenBurns: !prev.enableKenBurns }))}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-1 focus:ring-emerald-500/50 ${
+                    settings.enableKenBurns ? "bg-emerald-500" : "bg-zinc-800"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      settings.enableKenBurns ? "translate-x-4" : "translate-x-0"
+                    }`}
+                  />
+                </button>
               </div>
             </div>
           </div>

@@ -148,6 +148,8 @@ export function getReciterAudioCandidates(
   else if (reciterId === "ar.husary") everyAyahFolder = "Hussary_128kbps";
   else if (reciterId === "ar.abdulsamad") everyAyahFolder = "Abdul_Basit_Murattal_64kbps";
   else if (reciterId === "ar.maheralmuaiqly") everyAyahFolder = "MaherAlMuaiqly128kbps";
+  else if (reciterId === "ar.muhammadluhaidan") everyAyahFolder = "Muhammad_al_Luhaidan_128kbps";
+  else if (reciterId === "ar.muhammadayyoub") everyAyahFolder = "Muhammad_Ayyub_128kbps";
 
   const everyAyahUrl = `https://everyayah.com/data/${everyAyahFolder}/${filename}`;
   const mirrorUrl = `https://mirrors.quranicaudio.com/everyayah/data/${everyAyahFolder}/${filename}`;

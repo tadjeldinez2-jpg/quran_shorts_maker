@@ -83,3 +83,19 @@
 input[type="range"] {
   accent-color: #10b981;
 }
+
+@keyframes kenburns {
+  0% {
+    transform: scale(1) translate(0, 0);
+  }
+  50% {
+    transform: scale(1.16) translate(-1%, -1.5%);
+  }
+  100% {
+    transform: scale(1) translate(0, 0);
+  }
+}
+
+.animate-ken-burns {
+  animation: kenburns 36s ease-in-out infinite;
+}

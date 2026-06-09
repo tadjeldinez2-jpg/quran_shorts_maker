@@ -335,7 +335,9 @@ export default function VideoPlayer({
           <img
             src={uploadedImageUrl}
             referrerPolicy="no-referrer"
-            className="absolute inset-0 w-full h-full object-cover transition-all duration-300 pointer-events-none"
+            className={`absolute inset-0 w-full h-full object-cover transition-all duration-300 pointer-events-none ${
+              settings.enableKenBurns ? "animate-ken-burns" : ""
+            }`}
             style={{
               filter: `brightness(${settings.videoBrightness / 50})`,
             }}

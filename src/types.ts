@@ -77,6 +77,7 @@ export interface VideoEditorSettings {
   maxWordsPerSegment: number; // max words per caption segment
   timingOffset: number; // timing offset in seconds
   playBismillahPrefix: boolean; // whether to automatically prepend Bismillah audio-verbal narration
+  enableKenBurns: boolean; // New: toggle transition zoom/pan effect on photo background
 }
 
 export interface SelectedVerseInfo {

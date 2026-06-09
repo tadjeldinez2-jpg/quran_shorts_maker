@@ -185,5 +185,17 @@ export const RECITERS: Reciter[] = [
     name: "Maher Al-Muaiqly",
     avatarLetter: "ه",
     identifier: "ar.maheralmuaiqly"
+  },
+  {
+    id: "luhaidan",
+    name: "Muhammad Al-Luhaidan (محمد اللحيدان)",
+    avatarLetter: "ل",
+    identifier: "ar.muhammadluhaidan"
+  },
+  {
+    id: "ayyoub",
+    name: "Muhammad Ayyub (محمد أيوب)",
+    avatarLetter: "أ",
+    identifier: "ar.muhammadayyoub"
   }
 ];

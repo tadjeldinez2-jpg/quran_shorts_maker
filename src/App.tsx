@@ -39,7 +39,8 @@ const INITIAL_SETTINGS: VideoEditorSettings = {
   wordSpacing: 3,
   maxWordsPerSegment: 5,
   timingOffset: 0,
-  playBismillahPrefix: true
+  playBismillahPrefix: true,
+  enableKenBurns: true
 };
 
 export default function App() {
