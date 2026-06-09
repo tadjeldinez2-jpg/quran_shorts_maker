@@ -47,6 +47,7 @@ export default function App() {
   const [settings, setSettings] = useState<VideoEditorSettings>(INITIAL_SETTINGS);
   const [selectedVideo, setSelectedVideo] = useState<BackgroundVideo>(BACKGROUND_VIDEOS[0]);
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [selectedReciter, setSelectedReciter] = useState<Reciter>(RECITERS[0]);
   
@@ -584,6 +585,7 @@ export default function App() {
             setSettings={setSettings}
             selectedVideo={selectedVideo}
             uploadedVideoUrl={uploadedVideoUrl}
+            uploadedImageUrl={uploadedImageUrl}
             isPlaying={isPlaying}
             setIsPlaying={setIsPlaying}
             selectedReciterName={selectedReciter.name}
@@ -614,7 +616,10 @@ export default function App() {
             setSettings={setSettings}
             selectedVideo={selectedVideo}
             setSelectedVideo={setSelectedVideo}
+            uploadedVideoUrl={uploadedVideoUrl}
             setUploadedVideoUrl={setUploadedVideoUrl}
+            uploadedImageUrl={uploadedImageUrl}
+            setUploadedImageUrl={setUploadedImageUrl}
             isPlaying={isPlaying}
             setIsPlaying={setIsPlaying}
             onTriggerAiGeneration={handleTriggerAiGeneration}

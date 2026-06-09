@@ -11,6 +11,7 @@ interface VideoPlayerProps {
   setSettings: (updater: (prev: VideoEditorSettings) => VideoEditorSettings) => void;
   selectedVideo: BackgroundVideo;
   uploadedVideoUrl: string | null;
+  uploadedImageUrl?: string | null;
   isPlaying: boolean;
   setIsPlaying: (playing: boolean) => void;
   selectedReciterName: string;
@@ -34,6 +35,7 @@ export default function VideoPlayer({
   setSettings,
   selectedVideo,
   uploadedVideoUrl,
+  uploadedImageUrl = null,
   isPlaying,
   setIsPlaying,
   selectedReciterName,
@@ -328,19 +330,30 @@ export default function VideoPlayer({
           style={{ opacity: `${(100 - settings.videoOpacity) / 100}` }}
         />
 
-        {/* Video Backing */}
-        <video
-          ref={videoRef}
-          src={uploadedVideoUrl || selectedVideo.url}
-          key={uploadedVideoUrl || selectedVideo.url}
-          loop
-          muted={isMuted}
-          playsInline
-          className="absolute inset-0 w-full h-full object-cover transition-all duration-300 pointer-events-none"
-          style={{
-            filter: `brightness(${settings.videoBrightness / 50})`,
-          }}
-        />
+        {/* Photo or Video Backdrop Medium */}
+        {uploadedImageUrl ? (
+          <img
+            src={uploadedImageUrl}
+            referrerPolicy="no-referrer"
+            className="absolute inset-0 w-full h-full object-cover transition-all duration-300 pointer-events-none"
+            style={{
+              filter: `brightness(${settings.videoBrightness / 50})`,
+            }}
+          />
+        ) : (
+          <video
+            ref={videoRef}
+            src={uploadedVideoUrl || selectedVideo.url}
+            key={uploadedVideoUrl || selectedVideo.url}
+            loop
+            muted={isMuted}
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover transition-all duration-300 pointer-events-none"
+            style={{
+              filter: `brightness(${settings.videoBrightness / 50})`,
+            }}
+          />
+        )}
 
         {/* AI Loading Mask */}
         {isAiLoading && (

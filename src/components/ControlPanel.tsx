@@ -10,6 +10,7 @@ import {
   Pause, 
   Download, 
   Upload, 
+  Image,
   Search, 
   Layout, 
   VolumeX, 
@@ -104,7 +105,10 @@ interface ControlPanelProps {
   setSettings: (updater: (prev: VideoEditorSettings) => VideoEditorSettings) => void;
   selectedVideo: BackgroundVideo;
   setSelectedVideo: (video: BackgroundVideo) => void;
+  uploadedVideoUrl: string | null;
   setUploadedVideoUrl: (url: string | null) => void;
+  uploadedImageUrl?: string | null;
+  setUploadedImageUrl?: (url: string | null) => void;
   isPlaying: boolean;
   setIsPlaying: (playing: boolean) => void;
   onTriggerAiGeneration: () => Promise<void>;
@@ -143,7 +147,10 @@ export default function ControlPanel({
   setSettings,
   selectedVideo,
   setSelectedVideo,
+  uploadedVideoUrl = null,
   setUploadedVideoUrl,
+  uploadedImageUrl = null,
+  setUploadedImageUrl,
   isPlaying,
   setIsPlaying,
   onTriggerAiGeneration,
@@ -911,6 +918,20 @@ export default function ControlPanel({
     if (file) {
       const url = URL.createObjectURL(file);
       setUploadedVideoUrl(url);
+      if (setUploadedImageUrl) {
+        setUploadedImageUrl(null);
+      }
+    }
+  };
+
+  const handleUserImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      if (setUploadedImageUrl) {
+        setUploadedImageUrl(url);
+      }
+      setUploadedVideoUrl(null);
     }
   };
 
@@ -935,6 +956,9 @@ export default function ControlPanel({
     if (matchedVideo) {
       setSelectedVideo(matchedVideo);
       setUploadedVideoUrl(null);
+      if (setUploadedImageUrl) {
+        setUploadedImageUrl(null);
+      }
     }
   };
 
@@ -952,11 +976,12 @@ export default function ControlPanel({
     setRenderedFramesCount(0);
     setExportFps(30);
 
-    // Fetch the raw preview video element
+    // Fetch the raw preview video or image element
     const previewVideo = document.querySelector("#shorts-player-container video") as HTMLVideoElement;
-    if (!previewVideo) {
+    const previewImage = document.querySelector("#shorts-player-container img") as HTMLImageElement;
+    if (!previewVideo && !previewImage) {
       setIsExporting(false);
-      alert("Please ensure the background preview video has loaded properly.");
+      alert("Please ensure the background preview media (video or photo) has loaded properly.");
       return;
     }
 
@@ -996,19 +1021,26 @@ export default function ControlPanel({
       return;
     }
 
-    // ✓ Background video loaded
-    if (previewVideo.readyState < 2) {
+    // ✓ Background video or image loaded
+    if (previewVideo && previewVideo.readyState < 2) {
       setIsExporting(false);
       alert("Validation Error: Background video asset is still buffering or not fully loaded. Please wait for the video to prime.");
       return;
     }
+    if (previewImage && !previewImage.complete) {
+      setIsExporting(false);
+      alert("Validation Error: Background photo asset is still loading or not fully loaded. Please wait for the image to load completely.");
+      return;
+    }
 
     // Preload video assets to ensure smooth, stutter-free capture
-    try {
-      previewVideo.preload = "auto";
-      previewVideo.load();
-    } catch (e) {
-      console.warn("Video fast preloading failed:", e);
+    if (previewVideo) {
+      try {
+        previewVideo.preload = "auto";
+        previewVideo.load();
+      } catch (e) {
+        console.warn("Video fast preloading failed:", e);
+      }
     }
 
     // ✓ Captions loaded check
@@ -1188,14 +1220,16 @@ export default function ControlPanel({
     };
 
     // Set up background preview video state: loop seamlessly, muted, start playing from 0.
-    try {
-      previewVideo.pause();
-      previewVideo.currentTime = 0;
-      previewVideo.loop = true;
-      previewVideo.muted = true;
-      await previewVideo.play();
-    } catch (ve) {
-      console.warn("Could not play preview video automatically for export:", ve);
+    if (previewVideo) {
+      try {
+        previewVideo.pause();
+        previewVideo.currentTime = 0;
+        previewVideo.loop = true;
+        previewVideo.muted = true;
+        await previewVideo.play();
+      } catch (ve) {
+        console.warn("Could not play preview video automatically for export:", ve);
+      }
     }
 
     // Ensure essential cinematic fonts are fully loaded for high fidelity canvas rendering
@@ -1349,10 +1383,12 @@ export default function ControlPanel({
             nasheedAudioRef.current.currentTime = 0;
           } catch (_) {}
         }
-        try {
-          previewVideo.pause();
-          previewVideo.currentTime = 0;
-        } catch (_) {}
+        if (previewVideo) {
+          try {
+            previewVideo.pause();
+            previewVideo.currentTime = 0;
+          } catch (_) {}
+        }
         return;
       }
 
@@ -1386,20 +1422,26 @@ export default function ControlPanel({
           ctx.filter = `brightness(${settings.videoBrightness / 50})`;
         }
         
-        // Loop background video seamlessly without choking performance
-        if (previewVideo && previewVideo.duration) {
-          const expectedVideoTime = activeTime % previewVideo.duration;
-          // Max performance alignment: only seek if there is a severe sync discrepancy (> 1.5s), avoiding destructive constant seeking!
-          if (Math.abs(previewVideo.currentTime - expectedVideoTime) > 1.5) {
-            previewVideo.currentTime = expectedVideoTime;
+        if (previewImage) {
+          ctx.drawImage(previewImage, 0, 0, 1080, 1920);
+        } else if (previewVideo) {
+          // Loop background video seamlessly without choking performance
+          if (previewVideo.duration) {
+            const expectedVideoTime = activeTime % previewVideo.duration;
+            // Max performance alignment: only seek if there is a severe sync discrepancy (> 1.5s), avoiding destructive constant seeking!
+            if (Math.abs(previewVideo.currentTime - expectedVideoTime) > 1.5) {
+              previewVideo.currentTime = expectedVideoTime;
+            }
+            // Ensure video continues playing smoothly & does not pause or freeze
+            if ((previewVideo.paused || previewVideo.ended) && !previewVideo.seeking) {
+              previewVideo.play().catch(() => {});
+            }
           }
-          // Ensure video continues playing smoothly & does not pause or freeze
-          if ((previewVideo.paused || previewVideo.ended) && !previewVideo.seeking) {
-            previewVideo.play().catch(() => {});
-          }
+          ctx.drawImage(previewVideo, 0, 0, 1080, 1920);
+        } else {
+          // Force fallback triggering
+          throw new Error("No background media found");
         }
-
-        ctx.drawImage(previewVideo, 0, 0, 1080, 1920);
         ctx.filter = "none";
       } catch (e) {
         // High precision majestic CSS/gradients fallback
@@ -2058,9 +2100,12 @@ export default function ControlPanel({
                     onClick={() => {
                       setSelectedVideo(v);
                       setUploadedVideoUrl(null);
+                      if (setUploadedImageUrl) {
+                        setUploadedImageUrl(null);
+                      }
                     }}
                     className={`flex items-center gap-2 p-2 rounded-xl text-left transition text-xs border ${
-                      selectedVideo.id === v.id
+                      selectedVideo.id === v.id && !uploadedVideoUrl && !uploadedImageUrl
                         ? "bg-emerald-500/10 border-emerald-500 text-emerald-300"
                         : "bg-slate-950/40 border-white/5 text-slate-300 hover:bg-slate-900"
                     }`}
@@ -2077,21 +2122,54 @@ export default function ControlPanel({
               </div>
             </div>
 
-            {/* Video File Uploader */}
-            <div className="bg-slate-950/50 p-4 rounded-xl border border-dashed border-white/10 hover:border-emerald-500/40 transition text-center">
-              <Upload className="w-7 h-7 text-emerald-400 mx-auto mb-2" />
-              <span className="block text-white font-semibold text-xs mb-1">Upload Your Own Video</span>
-              <span className="block text-[10px] text-slate-400 mb-3">Supports MP4, MOV, or WebM loops</span>
-              
-              <label className="inline-block bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold py-1.5 px-3.5 rounded-lg cursor-pointer transition">
-                Select Local File
-                <input
-                  type="file"
-                  accept="video/mp4,video/quicktime,video/webm"
-                  onChange={handleUserVideoUpload}
-                  className="hidden"
-                />
-              </label>
+            {/* Upload Custom Media Section */}
+            <div>
+              <span className="block text-xs text-slate-400 mb-2 font-medium">Upload Custom Background Media</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Video File Uploader */}
+                <div className={`bg-slate-950/50 p-4 rounded-xl border border-dashed hover:border-emerald-500/40 transition text-center relative flex flex-col justify-between min-h-[140px] ${uploadedVideoUrl ? 'border-emerald-500 bg-emerald-500/5' : 'border-white/10'}`}>
+                  {uploadedVideoUrl && (
+                    <span className="absolute top-2 right-2 text-[9px] bg-emerald-500/15 text-emerald-400 font-mono px-1.5 py-0.5 rounded">Active</span>
+                  )}
+                  <div>
+                    <Upload className="w-5 h-5 text-emerald-400 mx-auto mb-1.5" />
+                    <span className="block text-white font-semibold text-xs mb-0.5">Custom Video</span>
+                    <span className="block text-[9px] text-slate-400 mb-2.5 leading-tight">Supports MP4, MOV, WebM loops</span>
+                  </div>
+                  
+                  <label className="inline-block bg-emerald-600/90 hover:bg-emerald-500 text-white text-[11px] font-semibold py-1 px-2.5 rounded-lg cursor-pointer transition select-none self-center">
+                    Select Video
+                    <input
+                      type="file"
+                      accept="video/mp4,video/quicktime,video/webm"
+                      onChange={handleUserVideoUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {/* Photo Background Uploader */}
+                <div className={`bg-slate-950/50 p-4 rounded-xl border border-dashed hover:border-emerald-500/40 transition text-center relative flex flex-col justify-between min-h-[140px] ${uploadedImageUrl ? 'border-emerald-500 bg-emerald-500/5' : 'border-white/10'}`}>
+                  {uploadedImageUrl && (
+                    <span className="absolute top-2 right-2 text-[9px] bg-emerald-500/15 text-emerald-400 font-mono px-1.5 py-0.5 rounded">Active</span>
+                  )}
+                  <div>
+                    <Image className="w-5 h-5 text-emerald-400 mx-auto mb-1.5" />
+                    <span className="block text-white font-semibold text-xs mb-0.5">Custom Photo / Image</span>
+                    <span className="block text-[9px] text-slate-400 mb-2.5 leading-tight">Supports JPG, PNG, WEBP, GIF</span>
+                  </div>
+                  
+                  <label className="inline-block bg-emerald-600/90 hover:bg-emerald-500 text-white text-[11px] font-semibold py-1 px-2.5 rounded-lg cursor-pointer transition select-none self-center">
+                    Select Photo
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      onChange={handleUserImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
             </div>
 
             {/* Video Adjustment Sliders */}
@@ -3125,6 +3203,7 @@ export default function ControlPanel({
           }
 
           const matchingVideoElement = typeof document !== "undefined" ? document.querySelector("#shorts-player-container video") as HTMLVideoElement : null;
+          const matchingImageElement = typeof document !== "undefined" ? document.querySelector("#shorts-player-container img") as HTMLImageElement : null;
           const diagVideoDuration = matchingVideoElement ? matchingVideoElement.duration : 0;
 
           const reciterAudios = typeof window !== "undefined" ? (window as any).__reciterAudios || [] : [];
@@ -3135,7 +3214,9 @@ export default function ControlPanel({
             ? reciterAudios.every((a: HTMLAudioElement) => a.readyState >= 1) 
             : (reciterAudio ? reciterAudio.readyState >= 1 : false);
           const chkCaptionsReady = diagSegments && diagSegments.length > 0;
-          const chkVideoReady = matchingVideoElement && matchingVideoElement.readyState >= 2;
+          const chkVideoReady = matchingVideoElement 
+            ? matchingVideoElement.readyState >= 2 
+            : (matchingImageElement ? matchingImageElement.complete : false);
           const chkDurationOk = diagCalculatedExportDuration > 0 && !isNaN(diagCalculatedExportDuration);
           const chkNoMissingAssets = chkAudioReady && chkVideoReady && chkCaptionsReady;
 
@@ -3192,9 +3273,9 @@ export default function ControlPanel({
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-zinc-400">✓ Background video primed:</span>
+                    <span className="text-zinc-400">✓ Background {matchingImageElement ? "photo" : "video"} primed:</span>
                     <span className={chkVideoReady ? "text-emerald-400 font-bold" : "text-amber-500"}>
-                      {chkVideoReady ? "READY" : "BUFFERING..."}
+                      {chkVideoReady ? (matchingImageElement ? "READY (PHOTO)" : "READY (VIDEO)") : "BUFFERING..."}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
