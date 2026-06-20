@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { VerseData, VideoEditorSettings, BackgroundVideo, SelectedVerseInfo } from "../types";
+import { TEMPLATE_PRESETS } from "../data/presets";
 import { Play, Pause, RefreshCw, Volume2, VolumeX, Maximize2, AlertCircle, Rewind, FastForward } from "lucide-react";
 import { getWordTimings, getSegmentTimings, findActiveTiming, WordTiming, SegmentTiming, findActiveVerse } from "../utils/captionHelper";
 
@@ -53,6 +54,16 @@ export default function VideoPlayer({
 }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Evaluate if Ken Burns is active based on 3-way setting
+  const isKenBurnsActive = (() => {
+    if (settings.enableKenBurns === "on") return true;
+    if (settings.enableKenBurns === "off") return false;
+    
+    // settings.enableKenBurns === "theme"
+    const currentTheme = TEMPLATE_PRESETS.find(t => t.id === settings.activeTemplateId);
+    return currentTheme ? (currentTheme.enableKenBurns !== false) : true;
+  })();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isMuted, setIsMuted] = useState(true);
   const [isTouchDragging, setIsTouchDragging] = useState(false);
@@ -69,6 +80,12 @@ export default function VideoPlayer({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+
+    // If an export session is active, let the export engine exert authoritative control
+    // over the video player elements to prevent auto-pausing or playhead snapping.
+    if (typeof window !== "undefined" && (window as any).__isExportingActive) {
+      return;
+    }
 
     // 1. Play/Pause state synchronization (self-healing)
     if (isPlaying) {
@@ -336,7 +353,7 @@ export default function VideoPlayer({
             src={uploadedImageUrl}
             referrerPolicy="no-referrer"
             className={`absolute inset-0 w-full h-full object-cover transition-all duration-300 pointer-events-none ${
-              settings.enableKenBurns ? "animate-ken-burns" : ""
+              isKenBurnsActive ? "animate-ken-burns" : ""
             }`}
             style={{
               filter: `brightness(${settings.videoBrightness / 50})`,

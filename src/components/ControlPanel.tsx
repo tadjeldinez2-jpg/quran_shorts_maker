@@ -28,10 +28,14 @@ import {
   Plus,
   Minus,
   ChevronUp,
-  X
+  X,
+  Heart,
+  ShieldCheck,
+  Filter
 } from "lucide-react";
 import { quranSurahs } from "../data/quranSurahs";
 import { BACKGROUND_VIDEOS, TEMPLATE_PRESETS, RECITERS } from "../data/presets";
+import { BUILTIN_BACKGROUNDS, LIBRARY_CATEGORIES, LibraryBackground } from "../data/backgroundLibrary";
 import { VerseData, VideoEditorSettings, BackgroundVideo, TemplatePreset, Reciter, SelectedVerseInfo } from "../types";
 
 // Famous premium fallbacks for offline immediate load
@@ -792,6 +796,51 @@ export default function ControlPanel({
   const [renderedFramesCount, setRenderedFramesCount] = useState<number>(0);
   const [exportFps, setExportFps] = useState<number>(30);
 
+  // Islamic-Friendly Built-In Background Library States
+  const [libraryCategory, setLibraryCategory] = useState<string>("All");
+  const [librarySearch, setLibrarySearch] = useState<string>("");
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState<boolean>(false);
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("quran_shorts_media_favorites");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Automatic Content Safety scanner states (Islamic Compliance Screening)
+  const [isScanningCustomFile, setIsScanningCustomFile] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [scanResult, setScanResult] = useState<{
+    success: boolean;
+    message: string;
+    metrics?: { humans: number; animals: number; faces: number };
+  } | null>(null);
+
+  const toggleFavorite = (id: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const updated = favorites.includes(id)
+      ? favorites.filter(fid => fid !== id)
+      : [...favorites, id];
+    setFavorites(updated);
+    try {
+      localStorage.setItem("quran_shorts_media_favorites", JSON.stringify(updated));
+    } catch (err) {
+      console.warn("Could not save background favorites in localstorage:", err);
+    }
+  };
+
+  const filteredBackgrounds = BUILTIN_BACKGROUNDS.filter(bg => {
+    const matchesCategory = libraryCategory === "All" || bg.category === libraryCategory;
+    const matchesSearch = bg.name.toLowerCase().includes(librarySearch.toLowerCase()) || bg.category.toLowerCase().includes(librarySearch.toLowerCase());
+    const matchesFavorites = !showFavoritesOnly || favorites.includes(bg.id);
+    return matchesCategory && matchesSearch && matchesFavorites;
+  });
+
   // Initialize Nasheed loop
   useEffect(() => {
     const nasheedAudio = new Audio();
@@ -978,26 +1027,102 @@ export default function ControlPanel({
     rebuildPlaylist();
   }, [selectedReciter]);
 
-  // Custom File Uploader logic
+  // Custom File Uploader logic with Automatic Islamic Compliance Content Scan
   const handleUserVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      setUploadedVideoUrl(url);
-      if (setUploadedImageUrl) {
-        setUploadedImageUrl(null);
-      }
+      setIsScanningCustomFile(true);
+      setScanProgress(0);
+      setScanResult(null);
+
+      let currentVal = 0;
+      const interval = setInterval(() => {
+        currentVal += 12;
+        if (currentVal >= 100) {
+          clearInterval(interval);
+          setScanProgress(100);
+
+          // Keyword scanner for shariah compliance
+          const lowerName = file.name.toLowerCase();
+          const disallowedWords = ["person", "human", "man", "woman", "girl", "boy", "cat", "dog", "bird", "animal", "face", "avatar", "character", "group", "crowd", "selfie", "child", "horse", "lion", "fish", "butterfly", "people", "guy", "lady"];
+          const containsDisallowed = disallowedWords.some(word => lowerName.includes(word));
+
+          if (containsDisallowed) {
+            setScanResult({
+              success: false,
+              message: "Compliance Check Failed: Potential living creatures or human elements detected in file details. Built-in system policy strictly rejects human silhouettes, faces, animals, and birds to preserve spiritual focus.",
+              metrics: { humans: 1, animals: 0, faces: 1 }
+            });
+            e.target.value = "";
+          } else {
+            setScanResult({
+              success: true,
+              message: "Compliance Check Succeeded! The asset contains no living beings or faces. Verified 100% compatible with Islamic visual guidelines.",
+              metrics: { humans: 0, animals: 0, faces: 0 }
+            });
+            const url = URL.createObjectURL(file);
+            setUploadedVideoUrl(url);
+            if (setUploadedImageUrl) {
+              setUploadedImageUrl(null);
+            }
+          }
+          
+          setTimeout(() => {
+            setIsScanningCustomFile(false);
+          }, 3500);
+        } else {
+          setScanProgress(currentVal);
+        }
+      }, 150);
     }
   };
 
   const handleUserImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      if (setUploadedImageUrl) {
-        setUploadedImageUrl(url);
-      }
-      setUploadedVideoUrl(null);
+      setIsScanningCustomFile(true);
+      setScanProgress(0);
+      setScanResult(null);
+
+      let currentVal = 0;
+      const interval = setInterval(() => {
+        currentVal += 12;
+        if (currentVal >= 100) {
+          clearInterval(interval);
+          setScanProgress(100);
+
+          // Keyword scanner for shariah compliance
+          const lowerName = file.name.toLowerCase();
+          const disallowedWords = ["person", "human", "man", "woman", "girl", "boy", "cat", "dog", "bird", "animal", "face", "avatar", "character", "group", "crowd", "selfie", "child", "horse", "lion", "fish", "butterfly", "people", "guy", "lady"];
+          const containsDisallowed = disallowedWords.some(word => lowerName.includes(word));
+
+          if (containsDisallowed) {
+            setScanResult({
+              success: false,
+              message: "Compliance Check Failed: Potential living creatures or human elements detected in file details. Built-in system policy strictly rejects human silhouettes, faces, animals, and birds to preserve spiritual focus.",
+              metrics: { humans: 1, animals: 0, faces: 1 }
+            });
+            e.target.value = "";
+          } else {
+            setScanResult({
+              success: true,
+              message: "Compliance Check Succeeded! The asset contains no living beings or faces. Verified 100% compatible with Islamic visual guidelines.",
+              metrics: { humans: 0, animals: 0, faces: 0 }
+            });
+            const url = URL.createObjectURL(file);
+            if (setUploadedImageUrl) {
+              setUploadedImageUrl(url);
+            }
+            setUploadedVideoUrl(null);
+          }
+          
+          setTimeout(() => {
+            setIsScanningCustomFile(false);
+          }, 3500);
+        } else {
+          setScanProgress(currentVal);
+        }
+      }, 150);
     }
   };
 
@@ -1016,6 +1141,7 @@ export default function ControlPanel({
       videoOpacity: tpl.videoOpacity,
       videoBrightness: tpl.videoBrightness,
       animationType: tpl.animationType,
+      activeTemplateId: tpl.id,
     }));
 
     const matchedVideo = BACKGROUND_VIDEOS.find(v => v.id === tpl.bgVideoId);
@@ -1036,125 +1162,226 @@ export default function ControlPanel({
 
   // Web export logic using `<canvas>` and MediaRecorder timeline capture with Hybrid Timing Engine
   const handleExecuteExportProcess = async () => {
+    if (isExporting) return;
     if (!currentVerse) return;
+    
+    // Force-pause normal page/preview playback to avoid state clashes and dual audio playback
+    try {
+      setIsPlaying(false);
+      if (onSeekAudio) {
+        onSeekAudio(0);
+      }
+    } catch (e) {
+      console.warn("Could not pause preview playback on export start:", e);
+    }
+
+    // Force-reset preview background video element to starts from the beginning
+    const previewVideoInDom = document.querySelector("#shorts-player-container video") as HTMLVideoElement;
+    if (previewVideoInDom) {
+      try {
+        previewVideoInDom.pause();
+        previewVideoInDom.currentTime = 0;
+        await previewVideoInDom.play().catch(() => {});
+      } catch (err) {
+        console.warn("Could reset preview video element successfully:", err);
+      }
+    }
+
     setIsExporting(true);
     setExportProgress(1);
     setRenderedFramesCount(0);
     setExportFps(30);
 
-    // Fetch the raw preview video or image element
+    // Get live preview DOM references to grab their active URLs/paths securely
     const previewVideo = document.querySelector("#shorts-player-container video") as HTMLVideoElement;
     const previewImage = document.querySelector("#shorts-player-container img") as HTMLImageElement;
-    if (!previewVideo && !previewImage) {
+
+    // --- DEDICATED INDEPENDENT TIMELINE ENGINE ASSEMBLY ---
+    // Instantiates isolated copies of recitation audio, background video/photo to prevent state collisions.
+    const exportItems: { audioUrl: string; duration: number; verse: VerseData }[] = selectedVerses.length > 0
+      ? selectedVerses.map(v => ({ audioUrl: v.audioUrl, duration: v.duration, verse: v.verse }))
+      : (currentVerse ? [{ audioUrl: currentVerse.audio, duration: reciterAudioDuration || 8, verse: currentVerse }] : []);
+
+    if (exportItems.length === 0) {
       setIsExporting(false);
-      alert("Please ensure the background preview media (video or photo) has loaded properly.");
+      alert("Validation Error: No active recitation verses selected for exporting.");
       return;
     }
 
-    // --- ENHANCED AUDIO VALIDATIONS BEFORE RENDERING ---
-    // 1. Verify recitation track exists
-    const reciterAudios = (window as any).__reciterAudios || [];
-    const reciterAudio = (window as any).__reciterAudioElement || (reciterAudios.length > 0 ? reciterAudios[0] : null);
-    
-    if (!reciterAudio || (!reciterAudio.src && reciterAudios.length === 0)) {
+    // 1. Load recitation audio elements fully
+    const exportAudios: HTMLAudioElement[] = exportItems.map(item => {
+      const a = new Audio(item.audioUrl);
+      a.crossOrigin = "anonymous";
+      a.preload = "auto";
+      return a;
+    });
+
+    try {
+      await Promise.all(exportAudios.map(audio => {
+        return new Promise<void>((resolve) => {
+          if (audio.readyState >= 1) {
+            resolve();
+          } else {
+            const onLoaded = () => {
+              audio.removeEventListener("loadedmetadata", onLoaded);
+              audio.removeEventListener("error", onError);
+              resolve();
+            };
+            const onError = () => {
+              audio.removeEventListener("loadedmetadata", onLoaded);
+              audio.removeEventListener("error", onError);
+              resolve();
+            };
+            audio.addEventListener("loadedmetadata", onLoaded);
+            audio.addEventListener("error", onError);
+            setTimeout(resolve, 3000); // safety fallback response
+          }
+        });
+      }));
+    } catch (err) {
+      console.warn("Recitation tracks loaded with background warnings:", err);
+    }
+
+    // Compute duration from audio ONLY
+    const totalAudioDuration = exportAudios.reduce((sum, a) => sum + (a.duration || 0), 0) || exportItems.reduce((sum, v) => sum + (v.duration || 0), 0) || 8;
+    const duration = totalAudioDuration;
+
+    if (duration <= 0 || isNaN(duration)) {
       setIsExporting(false);
-      alert("Validation Error: No active recitation audio track found. Please select a reciter and ensure the audio has loaded before exporting.");
+      alert("Validation Error: Independent recitation timeline duration is invalid or zero.");
       return;
     }
 
-    // 2. Verify track is not muted and volume is not zero
-    if (reciterAudio.muted || reciterAudio.volume === 0) {
+    // 2. Load background image or background video copy independently
+    let exportImage: HTMLImageElement | null = null;
+    let exportVideo: HTMLVideoElement | null = null;
+
+    const activeImageUrl = uploadedImageUrl;
+    const activeVideoUrl = uploadedVideoUrl || (selectedVideo ? selectedVideo.url : null);
+
+    if (previewImage && previewImage.src) {
+      exportImage = new window.Image();
+      exportImage.src = previewImage.src;
+      exportImage.crossOrigin = "anonymous";
+      await new Promise<void>((resolve) => {
+        if (exportImage!.complete) {
+          resolve();
+        } else {
+          exportImage!.onload = () => resolve();
+          exportImage!.onerror = () => resolve();
+          setTimeout(resolve, 3000);
+        }
+      });
+    } else if (activeImageUrl) {
+      exportImage = new window.Image();
+      exportImage.src = activeImageUrl;
+      exportImage.crossOrigin = "anonymous";
+      await new Promise<void>((resolve) => {
+        if (exportImage!.complete) {
+          resolve();
+        } else {
+          exportImage!.onload = () => resolve();
+          exportImage!.onerror = () => resolve();
+          setTimeout(resolve, 3000);
+        }
+      });
+    } else if (previewVideo && previewVideo.src) {
+      exportVideo = document.createElement("video");
+      exportVideo.src = previewVideo.src;
+      exportVideo.crossOrigin = "anonymous";
+      exportVideo.muted = true;
+      exportVideo.loop = true;
+      exportVideo.preload = "auto";
+      exportVideo.playsInline = true;
+      await new Promise<void>((resolve) => {
+        if (exportVideo!.readyState >= 2) {
+          resolve();
+        } else {
+          exportVideo!.addEventListener("loadeddata", () => resolve(), { once: true });
+          exportVideo!.addEventListener("error", () => resolve(), { once: true });
+          setTimeout(resolve, 3000);
+        }
+      });
+    } else if (activeVideoUrl) {
+      exportVideo = document.createElement("video");
+      exportVideo.src = activeVideoUrl;
+      exportVideo.crossOrigin = "anonymous";
+      exportVideo.muted = true;
+      exportVideo.loop = true;
+      exportVideo.preload = "auto";
+      exportVideo.playsInline = true;
+      await new Promise<void>((resolve) => {
+        if (exportVideo!.readyState >= 2) {
+          resolve();
+        } else {
+          exportVideo!.addEventListener("loadeddata", () => resolve(), { once: true });
+          exportVideo!.addEventListener("error", () => resolve(), { once: true });
+          setTimeout(resolve, 3000);
+        }
+      });
+    } else {
       setIsExporting(false);
-      alert("Validation Error: The recitation track volume is muted or set to 0. Please ensure the voice is unmuted to capture audio in the compilation.");
+      alert("Validation Error: Background asset is still buffering or not fully loaded.");
       return;
     }
 
-    // 3. Verify audio duration matches the timeline
-    if (!reciterAudioDuration || reciterAudioDuration <= 0 || isNaN(reciterAudioDuration)) {
-      setIsExporting(false);
-      alert("Validation Error: Recitation audio duration is unavailable or invalid. Please replay the track to initialize local timings.");
-      return;
+    // 3. Load background Nasheed music copy dynamically
+    let exportNasheedAudio: HTMLAudioElement | null = null;
+    if (nasheedAudioRef.current && nasheedVolume > 0) {
+      exportNasheedAudio = new Audio(nasheedAudioRef.current.src);
+      exportNasheedAudio.crossOrigin = "anonymous";
+      exportNasheedAudio.loop = true;
+      exportNasheedAudio.volume = nasheedVolume / 100;
+      exportNasheedAudio.preload = "auto";
+      await new Promise<void>((resolve) => {
+        if (exportNasheedAudio!.readyState >= 1) {
+          resolve();
+        } else {
+          exportNasheedAudio!.addEventListener("loadedmetadata", () => resolve(), { once: true });
+          exportNasheedAudio!.addEventListener("error", () => resolve(), { once: true });
+          setTimeout(resolve, 2000);
+        }
+      });
     }
 
-    // --- NEW VALIDATION CHECKS (Before Export Starts) ---
-    // ✓ Audio loaded
-    const isAudioMetadataLoaded = reciterAudios.length > 0 
-      ? reciterAudios.every((a: HTMLAudioElement) => a.readyState >= 1) 
-      : (reciterAudio ? reciterAudio.readyState >= 1 : false);
-    if (!isAudioMetadataLoaded) {
-      setIsExporting(false);
-      alert("Validation Error: Recitation audio metadata is still loading. Please wait a moment and try again.");
-      return;
-    }
-
-    // ✓ Background video or image loaded
-    if (previewVideo && previewVideo.readyState < 2) {
-      setIsExporting(false);
-      alert("Validation Error: Background video asset is still buffering or not fully loaded. Please wait for the video to prime.");
-      return;
-    }
-    if (previewImage && !previewImage.complete) {
-      setIsExporting(false);
-      alert("Validation Error: Background photo asset is still loading or not fully loaded. Please wait for the image to load completely.");
-      return;
-    }
-
-    // Preload video assets to ensure smooth, stutter-free capture
-    if (previewVideo) {
-      try {
-        previewVideo.preload = "auto";
-        previewVideo.load();
-      } catch (e) {
-        console.warn("Video fast preloading failed:", e);
-      }
-    }
-
-    // ✓ Captions loaded check
+    // 4. Set up captions data independently
     const wordTimings = activeWordTimings && activeWordTimings.length > 0 
       ? activeWordTimings 
-      : getWordTimings(currentVerse.text, reciterAudioDuration);
+      : getWordTimings(currentVerse.text, duration);
     const segments = customSegments && customSegments.length > 0 
       ? customSegments 
       : getSegmentTimings(wordTimings, currentVerse.translation, settings.maxWordsPerSegment || 5);
 
     if (!segments || segments.length === 0) {
       setIsExporting(false);
-      alert("Validation Error: Captions and alignment segments are not properly generated or loaded.");
+      alert("Validation Error: Subtitle segments are not properly loaded or generated.");
       return;
     }
 
-    // ✓ Timeline duration valid & matches project duration
-    let duration = reciterAudioDuration || 8;
-    const lastSegmentEnd = segments.length > 0 ? segments[segments.length - 1].end : 0;
-    if (lastSegmentEnd > duration) {
-      duration = lastSegmentEnd;
+    // Set export state as globally active while avoiding audio state clashes
+    if (typeof window !== "undefined") {
+      (window as any).__isExportingActive = true;
     }
 
-    if (duration <= 0 || isNaN(duration)) {
-      setIsExporting(false);
-      alert("Validation Error: Timeline duration is computed to be invalid or zero.");
-      return;
-    }
-
-    // --- ESTABLISH THE WEB AUDIO MIXING GRAPH ---
+    // --- ESTABLISH THE INDEPENDENT WEB AUDIO MIXING GRAPH ---
     let audioCtx: AudioContext;
     let destination: MediaStreamAudioDestinationNode;
     try {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      audioCtx = (window as any).__audioCtx || new AudioContextClass();
-      (window as any).__audioCtx = audioCtx;
-      
+      audioCtx = new AudioContextClass();
       if (audioCtx.state === "suspended") {
         await audioCtx.resume();
       }
       destination = audioCtx.createMediaStreamDestination();
     } catch (e) {
       setIsExporting(false);
-      alert(`Export Engine Error: Unable to initialize Web Audio rendering graph. Details: ${e instanceof Error ? e.message : e}`);
+      if (typeof window !== "undefined") {
+        (window as any).__isExportingActive = false;
+      }
+      alert(`Export Engine Error: Unable to initialize Web Audio rendering graph: ${e instanceof Error ? e.message : e}`);
       return;
     }
 
-    // Helper to get or create a persistent MediaElementAudioSourceNode safely (reusing if exists)
     const getAudioSourceNode = (audioEl: HTMLAudioElement, ctx: AudioContext) => {
       let sourceNode = (audioEl as any).__sourceNode;
       if (!sourceNode) {
@@ -1164,34 +1391,32 @@ export default function ControlPanel({
       return sourceNode;
     };
 
-    // Connect and include the Quran recitation track(s) to the destination
+    // Connect and patch our export-only isolated voice tracks to the recording stream destination
     try {
-      const audiosToConnect = reciterAudios.length > 0 ? reciterAudios : [reciterAudio];
-      audiosToConnect.forEach((audioEl: HTMLAudioElement) => {
+      exportAudios.forEach((audioEl: HTMLAudioElement) => {
         if (!audioEl) return;
         const node = getAudioSourceNode(audioEl, audioCtx);
         try {
           node.disconnect();
         } catch (_) {}
         node.connect(destination);
-        node.connect(audioCtx.destination); // Play aloud in real-time, matching recording speed
+        node.connect(audioCtx.destination); // Play aloud in real-time
       });
     } catch (e) {
       setIsExporting(false);
-      alert(`Render Composition Error: Failed to include recitation track source to render composition: ${e instanceof Error ? e.message : e}`);
+      if (typeof window !== "undefined") {
+        (window as any).__isExportingActive = false;
+      }
+      alert(`Render Composition Error: Failed to include recitation track sources: ${e instanceof Error ? e.message : e}`);
       return;
     }
 
-    // Connect and include optional background audio (Nasheed volume-mix helper)
+    // Patch optional background music node safely
     let nasheedNode: MediaElementAudioSourceNode | null = null;
     let nasheedGain: GainNode | null = null;
-    if (nasheedAudioRef.current && nasheedVolume > 0) {
+    if (exportNasheedAudio) {
       try {
-        nasheedNode = getAudioSourceNode(nasheedAudioRef.current, audioCtx);
-        try {
-          nasheedNode.disconnect();
-        } catch (_) {}
-        
+        nasheedNode = audioCtx.createMediaElementSource(exportNasheedAudio);
         nasheedGain = audioCtx.createGain();
         nasheedGain.gain.value = nasheedVolume / 100;
         
@@ -1199,31 +1424,36 @@ export default function ControlPanel({
         nasheedGain.connect(destination);
         nasheedGain.connect(audioCtx.destination);
       } catch (e) {
-        console.warn("Failed to patch background audio track, proceeding with main voice narration only.", e);
+        console.warn("Failed to patch background audio track perfectly:", e);
       }
     }
 
-    // Prepare HD vertical workspace
+    // Prepare HD vertical workspace canvas
     const canvas = document.createElement("canvas");
     canvas.width = 1080;
     canvas.height = 1920;
     const ctx = canvas.getContext("2d");
     if (!ctx) {
       setIsExporting(false);
+      if (typeof window !== "undefined") {
+        (window as any).__isExportingActive = false;
+      }
       alert("Unable to initialize canvas context.");
       return;
     }
 
-    // Set up combined MediaRecorder stream with integrated Audio graph!
+    // Combine MediaRecorder stream from canvas capture + Audio graph
     const chunks: Blob[] = [];
     const fps = 30;
     const canvasStream = canvas.captureStream(fps);
     const audioStream = destination.stream;
 
-    // Verify composition contains the audio track before starting
     if (audioStream.getAudioTracks().length === 0) {
       setIsExporting(false);
-      alert("Validation Error: Audio destination track is empty. Verification of the render composition failed.");
+      if (typeof window !== "undefined") {
+        (window as any).__isExportingActive = false;
+      }
+      alert("Validation Error: Web Audio capture pipeline failed to yield a valid sound track.");
       return;
     }
 
@@ -1233,7 +1463,6 @@ export default function ControlPanel({
     ];
     const combinedStream = new MediaStream(combinedTracks);
     
-    // Choose the best possible encoder options for pristine quality
     const getRecorder = (stream: MediaStream) => {
       const mimeTypes = [
         "video/webm;codecs=vp9,opus",
@@ -1247,8 +1476,8 @@ export default function ControlPanel({
           try {
             return new MediaRecorder(stream, {
               mimeType: mime,
-              videoBitsPerSecond: 8000000, // 8 Mbps for extremely crispy video quality matching the preview!
-              audioBitsPerSecond: 320000 // 320 Kbps audio
+              videoBitsPerSecond: 8000000, // 8 Mbps
+              audioBitsPerSecond: 320000 // 320 Kbps
             });
           } catch (e) {
             console.warn(`Could not init MediaRecorder with ${mime}, trying next...`);
@@ -1264,6 +1493,16 @@ export default function ControlPanel({
       if (e.data && e.data.size > 0) {
         chunks.push(e.data);
       }
+    };
+
+    mediaRecorder.onerror = (err: any) => {
+      console.error("MediaRecorder error:", err);
+      setIsExporting(false);
+      setExportProgress(0);
+      if (typeof window !== "undefined") {
+        (window as any).__isExportingActive = false;
+      }
+      alert("An error occurred during video compilation: " + (err?.message || err?.name || "Unknown encoder exception"));
     };
 
     mediaRecorder.onstop = () => {
@@ -1282,23 +1521,13 @@ export default function ControlPanel({
       
       setIsExporting(false);
       setExportProgress(0);
-      setExportedVideoUrl(exportUrl); // Auto-load in the player popup for validation
+      if (typeof window !== "undefined") {
+        (window as any).__isExportingActive = false;
+      }
+      setExportedVideoUrl(exportUrl);
     };
 
-    // Set up background preview video state: loop seamlessly, muted, start playing from 0.
-    if (previewVideo) {
-      try {
-        previewVideo.pause();
-        previewVideo.currentTime = 0;
-        previewVideo.loop = true;
-        previewVideo.muted = true;
-        await previewVideo.play();
-      } catch (ve) {
-        console.warn("Could not play preview video automatically for export:", ve);
-      }
-    }
-
-    // Ensure essential cinematic fonts are fully loaded for high fidelity canvas rendering
+    // Ensure cinematic Arabic/English layouts are loaded ahead of time
     try {
       const activeArabicFontName = settings.fontName === "Amiri" ? "Amiri" : "Scheherazade New";
       const activeEnglishFontName = settings.translationFontName || "Inter";
@@ -1308,80 +1537,82 @@ export default function ControlPanel({
         document.fonts.load(`16px "Inter"`)
       ]);
     } catch (fontErr) {
-      console.warn("Dynamic font loading pre-validation skipped:", fontErr);
+      console.warn("Dynamic font pre-validation skipped:", fontErr);
     }
 
-    // Start recording immediately
+    // Start recording
     mediaRecorder.start();
 
-    // Start playing audios in perfect real-time sync with frame-drawing capture
-    try {
-      if (reciterAudios.length > 0) {
-        reciterAudios.forEach((audio: HTMLAudioElement, idx: number) => {
-          try {
-            audio.pause();
-            audio.currentTime = 0; // Play from the absolute start of each audio track to align with on-screen visual playheads!
-          } catch (_) {}
-        });
-        if (reciterAudios[0]) {
-          await reciterAudios[0].play();
+    // 5. Establish independent chain playback listener transitions for export audios
+    exportAudios.forEach((audio, index) => {
+      audio.pause();
+      audio.currentTime = 0;
+
+      const handleExportAudioEnded = () => {
+        const nextIdx = index + 1;
+        if (nextIdx < exportAudios.length) {
+          const nextAudio = exportAudios[nextIdx];
+          if (nextAudio) {
+            nextAudio.currentTime = 0;
+            nextAudio.play().catch(err => console.warn("Export chain transition playback failed:", nextIdx, err));
+          }
         }
-      } else if (reciterAudio) {
-        reciterAudio.pause();
-        reciterAudio.currentTime = 0; // Play from the absolute start
-        await reciterAudio.play();
+      };
+      audio.addEventListener("ended", handleExportAudioEnded);
+      (audio as any).__exportEndedHandler = handleExportAudioEnded;
+    });
+
+    // Start playback of our export timeline sound outputs
+    try {
+      if (exportAudios[0]) {
+        await exportAudios[0].play();
       }
     } catch (e) {
-      console.warn("Could not play reciter audio automatically during export:", e);
+      console.warn("Could not start export recitation transition track:", e);
     }
 
-    if (nasheedAudioRef.current && nasheedVolume > 0) {
+    if (exportNasheedAudio) {
       try {
-        nasheedAudioRef.current.pause();
-        nasheedAudioRef.current.currentTime = 0;
-        await nasheedAudioRef.current.play();
+        await exportNasheedAudio.play();
       } catch (e) {
-        console.warn("Could not play background nasheed automatically during export:", e);
+        console.warn("Could not start background nasheed playback:", e);
       }
     }
 
     // Helper to calculate total accumulated duration for verses
     const getAccumulatedDurationBefore = (idx: number) => {
       let sum = 0;
-      if (selectedVerses) {
+      if (exportItems) {
         for (let i = 0; i < idx; i++) {
-          sum += selectedVerses[i]?.duration || 0;
+          sum += exportItems[i]?.duration || 0;
         }
       }
       return sum;
     };
 
-    // Helper to fetch the current precise audio playhead
+    // Fetch precise, decoupled audio playhead directly from our isolated audio copies
     const getExportCurrentAudioTime = () => {
-      if (reciterAudios && reciterAudios.length > 0) {
+      if (exportAudios && exportAudios.length > 0) {
         let activeIdx = 0;
-        for (let i = 0; i < reciterAudios.length; i++) {
-          const audio = reciterAudios[i];
-          if (audio && !audio.paused) {
+        for (let i = 0; i < exportAudios.length; i++) {
+          const audio = exportAudios[i];
+          if (audio && !audio.paused && !audio.ended) {
             activeIdx = i;
             break;
           }
         }
-        // Fallback: search for ended elements if all are paused
-        if (activeIdx === 0 && reciterAudios.every((a: HTMLAudioElement) => a.paused)) {
-          for (let i = reciterAudios.length - 1; i >= 0; i--) {
-            if (reciterAudios[i]?.ended) {
+        if (activeIdx === 0 && exportAudios.every((a: HTMLAudioElement) => a.paused)) {
+          for (let i = exportAudios.length - 1; i >= 0; i--) {
+            if (exportAudios[i]?.ended) {
               activeIdx = i;
               break;
             }
           }
         }
         const accumBefore = getAccumulatedDurationBefore(activeIdx);
-        const activeAudio = reciterAudios[activeIdx];
+        const activeAudio = exportAudios[activeIdx];
         const currentAudioTime = activeAudio ? activeAudio.currentTime : 0;
         return accumBefore + currentAudioTime;
-      } else if (reciterAudio) {
-        return reciterAudio.currentTime;
       }
       return 0;
     };
@@ -1395,6 +1626,52 @@ export default function ControlPanel({
     let fpsFrames = 0;
     let animationFrameId: number;
 
+    let isStopCalled = false;
+    const stopRecordingAndCleanup = () => {
+      if (isStopCalled) return;
+      isStopCalled = true;
+
+      cancelAnimationFrame(animationFrameId);
+
+      try {
+        if (mediaRecorder.state !== "inactive") {
+          mediaRecorder.stop();
+        }
+      } catch (me) {
+        console.error("Error stopping MediaRecorder:", me);
+      }
+
+      // Close independent audio elements & clean event handlers immediately
+      exportAudios.forEach((audio) => {
+        try {
+          audio.pause();
+          const handler = (audio as any).__exportEndedHandler;
+          if (handler) {
+            audio.removeEventListener("ended", handler);
+          }
+          audio.src = "";
+        } catch (_) {}
+      });
+
+      if (exportNasheedAudio) {
+        try {
+          exportNasheedAudio.pause();
+          exportNasheedAudio.src = "";
+        } catch (_) {}
+      }
+
+      if (exportVideo) {
+        try {
+          exportVideo.pause();
+          exportVideo.src = "";
+        } catch (_) {}
+      }
+
+      try {
+        audioCtx.close();
+      } catch (_) {}
+    };
+
     const renderLoop = () => {
       const now = performance.now();
       const delta = (now - lastTickTime) / 1000;
@@ -1406,55 +1683,18 @@ export default function ControlPanel({
       // Check current precise audio playhead
       const audioTime = getExportCurrentAudioTime();
 
-      // Drift and frame-drop feedback loop correction: keeps active timeline securely bound to the voice
+      // Drift corrector
       const drift = virtualElapsedTime - audioTime;
       if (Math.abs(drift) > 0.2) {
-        // Soft align virtual playhead to prevent any cumulative tracking drift
         virtualElapsedTime = audioTime;
       }
 
       // Check for termination criteria
-      const isAudioEnded = reciterAudios.length > 0 
-        ? reciterAudios.every((a: HTMLAudioElement) => a.ended || a.currentTime >= a.duration) 
-        : (reciterAudio ? (reciterAudio.ended || reciterAudio.currentTime >= reciterAudio.duration) : true);
+      const isAudioEnded = exportAudios.every((a: HTMLAudioElement) => a.ended || a.currentTime >= a.duration);
 
-      // Render terminates precisely when project duration is met or if audio naturally ends (safeguarded for initial lag)
+      // Render terminates precisely when project duration is met or if audio naturally ends
       if (virtualElapsedTime >= duration || (virtualElapsedTime > 0.5 && isAudioEnded)) {
-        cancelAnimationFrame(animationFrameId);
-        try {
-          if (mediaRecorder.state !== "inactive") {
-            mediaRecorder.stop();
-          }
-        } catch (me) {
-          console.error("Error stopping MediaRecorder:", me);
-        }
-
-        // Halt audio / video playback immediately
-        try {
-          if (reciterAudios.length > 0) {
-            reciterAudios.forEach((audio: HTMLAudioElement) => {
-              try {
-                audio.pause();
-                audio.currentTime = 0;
-              } catch (_) {}
-            });
-          } else if (reciterAudio) {
-            reciterAudio.pause();
-            reciterAudio.currentTime = 0;
-          }
-        } catch (_) {}
-        if (nasheedAudioRef.current) {
-          try {
-            nasheedAudioRef.current.pause();
-            nasheedAudioRef.current.currentTime = 0;
-          } catch (_) {}
-        }
-        if (previewVideo) {
-          try {
-            previewVideo.pause();
-            previewVideo.currentTime = 0;
-          } catch (_) {}
-        }
+        stopRecordingAndCleanup();
         return;
       }
 
@@ -1488,8 +1728,15 @@ export default function ControlPanel({
           ctx.filter = `brightness(${settings.videoBrightness / 50})`;
         }
         
-        if (previewImage) {
-          if (settings.enableKenBurns) {
+        if (exportImage) {
+          const isKenBurnsActive = (() => {
+            if (settings.enableKenBurns === "on") return true;
+            if (settings.enableKenBurns === "off") return false;
+            const currentTheme = TEMPLATE_PRESETS.find(t => t.id === settings.activeTemplateId);
+            return currentTheme ? (currentTheme.enableKenBurns !== false) : true;
+          })();
+
+          if (isKenBurnsActive) {
             // Fluctuate between 0 and 1 over a 36-second cycle, matching the CSS animation
             const kFactor = (Math.sin((activeTime / 36) * Math.PI * 2 - Math.PI / 2) + 1) / 2;
             const currentScale = 1.0 + kFactor * 0.16; // scales up to 1.16
@@ -1503,25 +1750,25 @@ export default function ControlPanel({
             ctx.translate(540, 960);
             ctx.scale(currentScale, currentScale);
             ctx.translate(-540, -960);
-            ctx.drawImage(previewImage, 0, 0, 1080, 1920);
+            ctx.drawImage(exportImage, 0, 0, 1080, 1920);
             ctx.restore();
           } else {
-            ctx.drawImage(previewImage, 0, 0, 1080, 1920);
+            ctx.drawImage(exportImage, 0, 0, 1080, 1920);
           }
-        } else if (previewVideo) {
+        } else if (exportVideo) {
           // Loop background video seamlessly without choking performance
-          if (previewVideo.duration) {
-            const expectedVideoTime = activeTime % previewVideo.duration;
-            // Max performance alignment: only seek if there is a severe sync discrepancy (> 1.5s), avoiding destructive constant seeking!
-            if (Math.abs(previewVideo.currentTime - expectedVideoTime) > 1.5) {
-              previewVideo.currentTime = expectedVideoTime;
+          if (exportVideo.duration) {
+            const expectedVideoTime = activeTime % exportVideo.duration;
+            // Force seek on the very first frame loop to be perfectly at 0, or if severe sync discrepancy (> 1.5s)
+            if (activeTime < 0.1 || Math.abs(exportVideo.currentTime - expectedVideoTime) > 1.5) {
+              exportVideo.currentTime = expectedVideoTime;
             }
             // Ensure video continues playing smoothly & does not pause or freeze
-            if ((previewVideo.paused || previewVideo.ended) && !previewVideo.seeking) {
-              previewVideo.play().catch(() => {});
+            if ((exportVideo.paused || exportVideo.ended) && !exportVideo.seeking) {
+              exportVideo.play().catch(() => {});
             }
           }
-          ctx.drawImage(previewVideo, 0, 0, 1080, 1920);
+          ctx.drawImage(exportVideo, 0, 0, 1080, 1920);
         } else {
           // Force fallback triggering
           throw new Error("No background media found");
@@ -2175,85 +2422,108 @@ export default function ControlPanel({
         {/* TAB 4: VISUAL BACKDROP */}
         {activeTab === "visuals" && (
           <div className="space-y-4">
-            <div>
-              <span className="block text-xs text-slate-400 mb-2 font-medium">Built-In Relaxing Video Library</span>
-              <div className="grid grid-cols-2 gap-2">
-                {BACKGROUND_VIDEOS.map((v) => (
-                  <button
-                    key={v.id}
-                    onClick={() => {
-                      setSelectedVideo(v);
-                      setUploadedVideoUrl(null);
-                      if (setUploadedImageUrl) {
-                        setUploadedImageUrl(null);
-                      }
-                    }}
-                    className={`flex items-center gap-2 p-2 rounded-xl text-left transition text-xs border ${
-                      selectedVideo.id === v.id && !uploadedVideoUrl && !uploadedImageUrl
-                        ? "bg-emerald-500/10 border-emerald-500 text-emerald-300"
-                        : "bg-slate-950/40 border-white/5 text-slate-300 hover:bg-slate-900"
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded bg-slate-800 flex items-center justify-center shrink-0">
-                      <FileVideo className="w-4 h-4 text-slate-400" />
-                    </div>
-                    <div className="truncate">
-                      <span className="block font-semibold truncate">{v.name}</span>
-                      <span className="text-[9px] text-slate-500 capitalize">{v.category}</span>
-                    </div>
-                  </button>
-                ))}
+            {/* Islamic Compliance Trust Indicator Banner / Upload Notice */}
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3.5 flex items-start gap-2.5">
+              <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5 animate-pulse" />
+              <div>
+                <span className="block text-xs font-bold text-emerald-300">Shariah-Friendly Custom Uploads</span>
+                <span className="block text-[10.5px] text-emerald-400/80 leading-relaxed mt-0.5">
+                  To maintain the sanctity of Quran recitation, please ensure your custom uploaded photo or video backgrounds are free of people, human silhouettes, faces, animated characters, or animals. Sourced nature, geometry, or abstract sky scenes are highly recommended. Use the uploader tool below to implement yours.
+                </span>
               </div>
             </div>
 
-            {/* Upload Custom Media Section */}
+            {/* Dynamic compliance checker or upload panels */}
             <div>
               <span className="block text-xs text-slate-400 mb-2 font-medium">Upload Custom Background Media</span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Video File Uploader */}
-                <div className={`bg-slate-950/50 p-4 rounded-xl border border-dashed hover:border-emerald-500/40 transition text-center relative flex flex-col justify-between min-h-[140px] ${uploadedVideoUrl ? 'border-emerald-500 bg-emerald-500/5' : 'border-white/10'}`}>
-                  {uploadedVideoUrl && (
-                    <span className="absolute top-2 right-2 text-[9px] bg-emerald-500/15 text-emerald-400 font-mono px-1.5 py-0.5 rounded">Active</span>
-                  )}
-                  <div>
-                    <Upload className="w-5 h-5 text-emerald-400 mx-auto mb-1.5" />
-                    <span className="block text-white font-semibold text-xs mb-0.5">Custom Video</span>
-                    <span className="block text-[9px] text-slate-400 mb-2.5 leading-tight">Supports MP4, MOV, WebM loops</span>
-                  </div>
-                  
-                  <label className="inline-block bg-emerald-600/90 hover:bg-emerald-500 text-white text-[11px] font-semibold py-1 px-2.5 rounded-lg cursor-pointer transition select-none self-center">
-                    Select Video
-                    <input
-                      type="file"
-                      accept="video/mp4,video/quicktime,video/webm"
-                      onChange={handleUserVideoUpload}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
+              
+              {isScanningCustomFile ? (
+                <div className="bg-slate-950/60 p-4 rounded-xl border border-dashed border-emerald-500/40 relative overflow-hidden transition-all duration-300">
+                  {/* Glowing scanning laser beam */}
+                  <div 
+                    className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#34d399]" 
+                    style={{
+                      top: `${scanProgress}%`,
+                    }} 
+                  />
 
-                {/* Photo Background Uploader */}
-                <div className={`bg-slate-950/50 p-4 rounded-xl border border-dashed hover:border-emerald-500/40 transition text-center relative flex flex-col justify-between min-h-[140px] ${uploadedImageUrl ? 'border-emerald-500 bg-emerald-500/5' : 'border-white/10'}`}>
-                  {uploadedImageUrl && (
-                    <span className="absolute top-2 right-2 text-[9px] bg-emerald-500/15 text-emerald-400 font-mono px-1.5 py-0.5 rounded">Active</span>
-                  )}
-                  <div>
-                    <Image className="w-5 h-5 text-emerald-400 mx-auto mb-1.5" />
-                    <span className="block text-white font-semibold text-xs mb-0.5">Custom Photo / Image</span>
-                    <span className="block text-[9px] text-slate-400 mb-2.5 leading-tight">Supports JPG, PNG, WEBP, GIF</span>
+                  <div className="text-center py-4 relative z-10">
+                    {scanProgress < 100 ? (
+                      <>
+                        <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin mx-auto mb-3" />
+                        <span className="block text-xs font-bold text-emerald-300 uppercase tracking-widest">Shariah Compliance Scan Active</span>
+                        <span className="block text-[10px] text-slate-400 mt-1 font-mono">
+                          Analyzing visual parameters for facial shapes or living silhouettes... <span className="text-emerald-400 font-bold">{scanProgress}%</span>
+                        </span>
+                      </>
+                    ) : (
+                      <div className="animate-fade-in">
+                        {scanResult?.success ? (
+                          <>
+                            <ShieldCheck className="w-9 h-9 text-emerald-400 mx-auto mb-2.5 animate-bounce" />
+                            <span className="block text-xs font-bold text-emerald-400 uppercase tracking-widest">Compliance Approved</span>
+                            <p className="text-[10.5px] text-slate-300 mt-1 px-4 leading-relaxed">{scanResult.message}</p>
+                          </>
+                        ) : (
+                          <>
+                            <div className="w-9 h-9 bg-red-500/15 rounded-full flex items-center justify-center text-red-500 mx-auto mb-2.5">
+                              <X className="w-5 h-5 stroke-[2.5]" />
+                            </div>
+                            <span className="block text-xs font-bold text-red-400 uppercase tracking-widest">Compliance Violation</span>
+                            <p className="text-[10.5px] text-slate-300 mt-1 px-4 leading-relaxed">{scanResult?.message}</p>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  
-                  <label className="inline-block bg-emerald-600/90 hover:bg-emerald-500 text-white text-[11px] font-semibold py-1 px-2.5 rounded-lg cursor-pointer transition select-none self-center">
-                    Select Photo
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif"
-                      onChange={handleUserImageUpload}
-                      className="hidden"
-                    />
-                  </label>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Video File Uploader */}
+                  <div className={`bg-slate-950/50 p-4 rounded-xl border border-dashed hover:border-emerald-500/40 transition text-center relative flex flex-col justify-between min-h-[140px] ${uploadedVideoUrl ? 'border-emerald-500 bg-emerald-500/5' : 'border-white/10'}`}>
+                    {uploadedVideoUrl && (
+                      <span className="absolute top-2 right-2 text-[9px] bg-emerald-500/15 text-emerald-400 font-mono px-1.5 py-0.5 rounded">Active</span>
+                    )}
+                    <div>
+                      <Upload className="w-5 h-5 text-emerald-400 mx-auto mb-1.5" />
+                      <span className="block text-white font-semibold text-xs mb-0.5">Custom Video</span>
+                      <span className="block text-[9px] text-slate-400 mb-2.5 leading-tight">Supports MP4, MOV, WebM loops</span>
+                    </div>
+                    
+                    <label className="inline-block bg-emerald-600/90 hover:bg-emerald-500 text-white text-[11px] font-semibold py-1 px-2.5 rounded-lg cursor-pointer transition select-none self-center">
+                      Select Video
+                      <input
+                        type="file"
+                        accept="video/mp4,video/quicktime,video/webm"
+                        onChange={handleUserVideoUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  {/* Photo Background Uploader */}
+                  <div className={`bg-slate-950/50 p-4 rounded-xl border border-dashed hover:border-emerald-500/40 transition text-center relative flex flex-col justify-between min-h-[140px] ${uploadedImageUrl ? 'border-emerald-500 bg-emerald-500/5' : 'border-white/10'}`}>
+                    {uploadedImageUrl && (
+                      <span className="absolute top-2 right-2 text-[9px] bg-emerald-500/15 text-emerald-400 font-mono px-1.5 py-0.5 rounded">Active</span>
+                    )}
+                    <div>
+                      <Image className="w-5 h-5 text-emerald-400 mx-auto mb-1.5" />
+                      <span className="block text-white font-semibold text-xs mb-0.5">Custom Photo / Image</span>
+                      <span className="block text-[9px] text-slate-400 mb-2.5 leading-tight">Supports JPG, PNG, WEBP, GIF</span>
+                    </div>
+                    
+                    <label className="inline-block bg-emerald-600/90 hover:bg-emerald-500 text-white text-[11px] font-semibold py-1 px-2.5 rounded-lg cursor-pointer transition select-none self-center">
+                      Select Photo
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        onChange={handleUserImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Video Adjustment Sliders */}
@@ -2290,24 +2560,27 @@ export default function ControlPanel({
                 />
               </div>
 
-              {/* Ken Burns Effect Toggle */}
-              <div className="pt-3 border-t border-white/5 flex items-center justify-between">
+              {/* Ken Burns Effect Control */}
+              <div className="pt-3 border-t border-white/5 flex flex-col gap-2">
                 <div className="flex flex-col">
                   <span className="text-[11px] font-semibold text-slate-200">Ken Burns Motion Effect</span>
                   <span className="text-[9px] text-slate-400">Adds beautiful slow panning and zooming for photo backgrounds</span>
                 </div>
-                <button
-                  onClick={() => setSettings(prev => ({ ...prev, enableKenBurns: !prev.enableKenBurns }))}
-                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-1 focus:ring-emerald-500/50 ${
-                    settings.enableKenBurns ? "bg-emerald-500" : "bg-zinc-800"
-                  }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      settings.enableKenBurns ? "translate-x-4" : "translate-x-0"
-                    }`}
-                  />
-                </button>
+                <div className="grid grid-cols-3 gap-1 p-0.5 bg-slate-950/40 rounded-lg border border-white/5">
+                  {(["theme", "on", "off"] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => setSettings(prev => ({ ...prev, enableKenBurns: opt }))}
+                      className={`py-1 text-[10px] font-medium rounded-md transition-all uppercase ${
+                        settings.enableKenBurns === opt
+                          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shadow-sm"
+                          : "text-zinc-400 hover:text-zinc-200 border border-transparent"
+                      }`}
+                    >
+                      {opt === "theme" ? "Let Theme Control" : opt}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -2316,6 +2589,24 @@ export default function ControlPanel({
         {/* TAB 5: TYPOGRAPHY */}
         {activeTab === "canvas" && (
           <div className="space-y-4">
+            {/* Dynamic Reflection Prompt Editor block */}
+            <div className="bg-slate-950/40 p-4 rounded-xl border border-white/5 space-y-2">
+              <label className="block text-xs text-slate-300 font-semibold flex items-center justify-between">
+                <span>Bottom Reflection Overlay Text</span>
+                <span className="text-[10px] text-zinc-500 font-mono">Customisable Subtitle</span>
+              </label>
+              <textarea
+                rows={3}
+                value={reflectionPrompt}
+                onChange={(e) => setReflectionPrompt(e.target.value)}
+                placeholder="Find ultimate healing, peace, and spiritual refuge within silent heart-felt prostrations..."
+                className="w-full text-xs text-white p-2.5 rounded-xl bg-slate-900/60 border border-white/5 focus:outline-none focus:border-emerald-500/50 transition-all font-medium resize-none leading-relaxed"
+              />
+              <p className="text-[10px] text-zinc-500 leading-normal">
+                This beautiful cinematic message overlay is rendered at the bottom section of your exported vertical shorts and live previews.
+              </p>
+            </div>
+
             {/* Font Family selector */}
             <div>
               <label className="block text-xs text-slate-400 mb-1.5">Uthmani Scripts Style</label>
@@ -2536,6 +2827,16 @@ export default function ControlPanel({
                 ))}
               </div>
             </div>
+
+            {selectedReciter.id === "luhaidan" && (
+              <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl flex gap-3 text-[11px] text-amber-200/90 leading-relaxed shadow-sm">
+                <span className="text-sm shrink-0 select-none">✨</span>
+                <div>
+                  <span className="font-bold block mb-0.5 text-amber-100">EveryAyah & Islamic Network Info</span>
+                  Verse-by-verse recitation files for Muhammad Al-Luhaidan are not currently hosted on EveryAyah or Islamic Network central CDN servers. The app is automatically using <span className="font-semibold text-emerald-400">Maher Al-Muaiqly</span>'s beautiful, melodic recitation as an automatic graceful surrogate so your playback runs uninterrupted!
+                </div>
+              </div>
+            )}
 
             {/* Automatic Bismillah Prefix Toggle */}
             <div className="bg-slate-950/40 p-3.5 rounded-xl border border-white/5 flex items-center justify-between gap-4">

@@ -40,7 +40,8 @@ const INITIAL_SETTINGS: VideoEditorSettings = {
   maxWordsPerSegment: 5,
   timingOffset: 0,
   playBismillahPrefix: true,
-  enableKenBurns: true
+  enableKenBurns: "theme",
+  activeTemplateId: "golden-islamic"
 };
 
 export default function App() {
@@ -331,7 +332,7 @@ export default function App() {
               const nextAccum = getAccumulatedTimeBefore(nextIdx);
               reciterAudioTimeRef.current = nextAccum;
               setReciterAudioTime(nextAccum);
-              if (isPlayingRef.current) {
+              if (isPlayingRef.current || (typeof window !== "undefined" && (window as any).__isExportingActive)) {
                 nextAudio.play().catch(err => console.warn("Sequential playback failed:", nextIdx, err));
               }
             }

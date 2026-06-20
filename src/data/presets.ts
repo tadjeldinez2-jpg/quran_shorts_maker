@@ -69,7 +69,8 @@ export const TEMPLATE_PRESETS: TemplatePreset[] = [
     lineHeight: 2.2,
     letterSpacing: "wide",
     themeColor: "#b45309",
-    animationType: "zoom"
+    animationType: "zoom",
+    enableKenBurns: true
   },
   {
     id: "emerald-islamic",
@@ -88,7 +89,8 @@ export const TEMPLATE_PRESETS: TemplatePreset[] = [
     lineHeight: 2.2,
     letterSpacing: "wide",
     themeColor: "#10B981",
-    animationType: "fade"
+    animationType: "fade",
+    enableKenBurns: false
   },
   {
     id: "mystical-particles",
@@ -107,7 +109,8 @@ export const TEMPLATE_PRESETS: TemplatePreset[] = [
     lineHeight: 2.2,
     letterSpacing: "normal",
     themeColor: "#d97706",
-    animationType: "zoom"
+    animationType: "zoom",
+    enableKenBurns: true
   },
   {
     id: "sapphire-night",
@@ -126,7 +129,8 @@ export const TEMPLATE_PRESETS: TemplatePreset[] = [
     lineHeight: 2.2,
     letterSpacing: "wide",
     themeColor: "#1d4ed8",
-    animationType: "slide"
+    animationType: "slide",
+    enableKenBurns: false
   },
   {
     id: "crystal-minimal",
@@ -145,7 +149,8 @@ export const TEMPLATE_PRESETS: TemplatePreset[] = [
     lineHeight: 2.2,
     letterSpacing: "normal",
     themeColor: "#1e293b",
-    animationType: "fade"
+    animationType: "fade",
+    enableKenBurns: true
   }
 ];
 
@@ -185,6 +190,12 @@ export const RECITERS: Reciter[] = [
     name: "Maher Al-Muaiqly",
     avatarLetter: "ه",
     identifier: "ar.maheralmuaiqly"
+  },
+  {
+    id: "dussary",
+    name: "Yasser Al-Dossari (ياسر الدوسري)",
+    avatarLetter: "ي",
+    identifier: "ar.yasseraddussary"
   },
   {
     id: "luhaidan",

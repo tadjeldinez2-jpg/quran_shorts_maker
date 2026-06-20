@@ -37,6 +37,7 @@ export interface TemplatePreset {
   themeColor: string; // for UI indicator
   animationType: "fade" | "zoom" | "slide" | "none";
   englishFont?: string; // Optional custom English subtitle font
+  enableKenBurns?: boolean; // Theme-specific preference for background motion
 }
 
 export interface BackgroundVideo {
@@ -77,7 +78,8 @@ export interface VideoEditorSettings {
   maxWordsPerSegment: number; // max words per caption segment
   timingOffset: number; // timing offset in seconds
   playBismillahPrefix: boolean; // whether to automatically prepend Bismillah audio-verbal narration
-  enableKenBurns: boolean; // New: toggle transition zoom/pan effect on photo background
+  enableKenBurns: "on" | "off" | "theme"; // toggle transition zoom/pan effect on photo background
+  activeTemplateId?: string; // Track selected theme preset for context-aware settings
 }
 
 export interface SelectedVerseInfo {

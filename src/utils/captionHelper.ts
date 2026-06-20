@@ -141,21 +141,25 @@ export function getReciterAudioCandidates(
   const ayahStr = String(ayahNum).padStart(3, "0");
   const filename = `${surahStr}${ayahStr}.mp3`;
   
+  // Dynamic fallback: Muhammad Al-Luhaidan verse-by-verse audios are not hosted on central EveryAyah/Islamic Network CDN servers.
+  // We use the excellent and beautiful recitation of Maher Al-Muaiqly (ar.maheralmuaiqly) as a premium spiritual fallback.
+  const activeReciterId = reciterId === "ar.muhammadluhaidan" ? "ar.maheralmuaiqly" : reciterId;
+
   let everyAyahFolder = "Alafasy_128kbps";
-  if (reciterId === "ar.alafasy") everyAyahFolder = "Alafasy_128kbps";
-  else if (reciterId === "ar.alijaber") everyAyahFolder = "Ali_Jaber_64kbps";
-  else if (reciterId === "ar.minshawi") everyAyahFolder = "Minshawi_Murattal_128kbps";
-  else if (reciterId === "ar.husary") everyAyahFolder = "Hussary_128kbps";
-  else if (reciterId === "ar.abdulsamad") everyAyahFolder = "Abdul_Basit_Murattal_64kbps";
-  else if (reciterId === "ar.maheralmuaiqly") everyAyahFolder = "MaherAlMuaiqly128kbps";
-  else if (reciterId === "ar.muhammadluhaidan") everyAyahFolder = "Muhammad_al_Luhaidan_128kbps";
-  else if (reciterId === "ar.muhammadayyoub") everyAyahFolder = "Muhammad_Ayyub_128kbps";
+  if (activeReciterId === "ar.alafasy") everyAyahFolder = "Alafasy_128kbps";
+  else if (activeReciterId === "ar.alijaber") everyAyahFolder = "Ali_Jaber_64kbps";
+  else if (activeReciterId === "ar.minshawi") everyAyahFolder = "Minshawi_Murattal_128kbps";
+  else if (activeReciterId === "ar.husary") everyAyahFolder = "Hussary_128kbps";
+  else if (activeReciterId === "ar.abdulsamad") everyAyahFolder = "Abdul_Basit_Murattal_64kbps";
+  else if (activeReciterId === "ar.maheralmuaiqly") everyAyahFolder = "MaherAlMuaiqly128kbps";
+  else if (activeReciterId === "ar.muhammadayyoub") everyAyahFolder = "Muhammad_Ayyub_128kbps";
+  else if (activeReciterId === "ar.yasseraddussary") everyAyahFolder = "Yasser_Ad-Dussary_128kbps";
 
   const everyAyahUrl = `https://everyayah.com/data/${everyAyahFolder}/${filename}`;
   const mirrorUrl = `https://mirrors.quranicaudio.com/everyayah/data/${everyAyahFolder}/${filename}`;
 
-  const islamicBitrate = reciterId === "ar.abdulsamad" ? "64" : "128";
-  const islamicNetworkUrl = `https://cdn.islamic.network/quran/audio/${islamicBitrate}/${reciterId}/${absoluteAyahIndex}.mp3`;
+  const islamicBitrate = activeReciterId === "ar.abdulsamad" ? "64" : "128";
+  const islamicNetworkUrl = `https://cdn.islamic.network/quran/audio/${islamicBitrate}/${activeReciterId}/${absoluteAyahIndex}.mp3`;
 
   // Detect static hosting environments (Netlify, Vercel, GitHub Pages) or dynamic checked backend absences
   const isStaticPlatform = typeof window !== "undefined" && (
@@ -165,9 +169,11 @@ export function getReciterAudioCandidates(
     (window as any).__hasBackend === false
   );
 
+  const supportsIslamicNetwork = reciterId !== "ar.alijaber" && reciterId !== "ar.yasseraddussary" && reciterId !== "ar.muhammadluhaidan";
+
   if (!isStaticPlatform) {
     // 1. Proxied official Islamic Network CDN URL (Highly reliable)
-    if (reciterId !== "ar.alijaber") {
+    if (supportsIslamicNetwork) {
       urls.push(`/api/audio-proxy?url=${encodeURIComponent(islamicNetworkUrl)}`);
     }
 
@@ -176,7 +182,7 @@ export function getReciterAudioCandidates(
   }
 
   // 3. Fallback: Direct Islamic Network CDN URL
-  if (reciterId !== "ar.alijaber") {
+  if (supportsIslamicNetwork) {
     urls.push(islamicNetworkUrl);
   }
 
