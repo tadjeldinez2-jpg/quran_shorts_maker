@@ -920,14 +920,94 @@ export default function ControlPanel({
       setPexelsLoading(true);
       setPexelsError("");
       try {
+        // Direct Client-Side Fetch if user has configured VITE_PEXELS_API_KEY on Vercel
+        const clientApiKey = (((import.meta as any).env?.VITE_PEXELS_API_KEY) as string || "").trim();
+        if (clientApiKey && clientApiKey !== "MY_PEXELS_API_KEY") {
+          console.log("[Pexels Client Direct] VITE_PEXELS_API_KEY detected. Fetching directly from Pexels API...");
+          
+          const queryMapClient: Record<string, string> = {
+            "Mountains": "mountains peaks cinematic landscape vertical",
+            "Ocean": "ocean waves aerial sea water vertical",
+            "Forest": "forest mist sunbeams lush foliage vertical",
+            "Rain": "rain window aesthetic cinematic vertical",
+            "Sky": "clouds sunset sky heavenly vertical",
+            "Desert": "desert sand dunes landscape still vertical",
+            "Minimal": "minimal nature textures calming background vertical",
+            "Abstract": "abstract slow motion ambient light sparkles vertical"
+          };
+
+          let searchToRun = pexelsQuery;
+          if (!searchToRun) {
+            searchToRun = queryMapClient[pexelsCategory] || "beautiful quiet nature landscape vertical";
+          } else {
+            searchToRun = `${searchToRun} vertical landscape nature`;
+          }
+
+          const fetchUrl = pexelsMediaType === "photos"
+            ? `https://api.pexels.com/v1/search?query=${encodeURIComponent(searchToRun)}&orientation=portrait&per_page=12&page=${pexelsPage}`
+            : `https://api.pexels.com/videos/search?query=${encodeURIComponent(searchToRun)}&orientation=portrait&per_page=12&page=${pexelsPage}`;
+
+          const directRes = await fetch(fetchUrl, {
+            headers: {
+              "Authorization": clientApiKey
+            }
+          });
+
+          if (!directRes.ok) {
+            throw new Error(`Pexels API direct request failed with status: ${directRes.status}`);
+          }
+
+          const pexelsData = await directRes.json();
+          const items = pexelsMediaType === "photos" ? (pexelsData.photos || []) : (pexelsData.videos || []);
+
+          // Apply our high-quality Shariah-compliant filter directly on client-side results
+          const FORBIDDEN_WORDS = /\b(person|human|man|woman|people|girl|boy|face|silhouette|crowd|statue|sculpture|sculptures|statues|monument|feet|hands|eyes|posing|pose|hug|dance|party|bikini|swimsuit|underwear|model|couple|family|crowded|selfie|portrait|guy|lady|gentleman|child|baby|kid|kids|spectators|audience|monuments|cross|jesus|buddha|characters|animated|animator|skater|city|cities|office|cars|traffic|buildings)\b/i;
+
+          const filtered = items.filter((item: any) => {
+            const textToScan = [
+              pexelsMediaType === "photos" ? (item.alt || "") : "",
+              item.url || "",
+              pexelsMediaType === "photos" ? (item.photographer || "") : (item.user?.name || ""),
+              Array.isArray(item.tags) ? item.tags.join(" ") : ""
+            ].join(" ").toLowerCase();
+
+            if (FORBIDDEN_WORDS.test(textToScan)) return false;
+
+            if (pexelsMediaType === "photos") {
+              return item.height > item.width;
+            } else {
+              if (!item.video_files || item.video_files.length === 0) return false;
+              const portraitFiles = item.video_files.filter((vf: any) => vf.height > vf.width);
+              return portraitFiles.length > 0;
+            }
+          });
+
+          if (active) {
+            setPexelsResults(filtered);
+            setIsPexelsKeyMissing(false);
+          }
+          return;
+        }
+
+        // Fallback to Serverless API Proxy
         const url = `/api/pexels/search?category=${encodeURIComponent(pexelsCategory)}&query=${encodeURIComponent(pexelsQuery)}&mediaType=${pexelsMediaType}&page=${pexelsPage}&perPage=12`;
         const res = await fetch(url);
         
         let responseData;
         if (res.ok) {
-          responseData = await res.json();
+          const contentType = res.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            responseData = await res.json();
+          } else {
+            console.warn("[Pexels Proxy API] Service route responded with non-JSON format description (likely Vercel SPA html redirect). Active fallbacks.");
+            responseData = {
+              success: true,
+              results: getClientFallbackResults(pexelsCategory, pexelsQuery, pexelsMediaType),
+              usingFallback: true
+            };
+          }
         } else {
-          console.warn("[Pexels Proxy API] Service route responded with error. Deploy mode: static client sandbox fallback active.");
+          console.warn("[Pexels Proxy API] Service route responded with errorStatus. Active fallbacks.");
           responseData = {
             success: true,
             results: getClientFallbackResults(pexelsCategory, pexelsQuery, pexelsMediaType),
@@ -2691,7 +2771,7 @@ export default function ControlPanel({
                       <span className="text-[10px] font-bold text-slate-300">Curated Library Active</span>
                     </div>
                     <p className="text-[9.5px] text-zinc-400 leading-normal">
-                      Pexels API key is not configured. We've loaded beautiful, Shariah-compliant 9:16 nature presets above. Configure <code className="text-emerald-400 font-semibold bg-emerald-500/10 px-1 py-0.5 rounded">PEXELS_API_KEY</code> to search the entire online catalog!
+                      Pexels API key is not configured or server proxy is missing. We've loaded Shariah-compliant 9:16 nature presets. Add <code className="text-emerald-400 font-semibold bg-emerald-500/10 px-1 py-0.5 rounded">VITE_PEXELS_API_KEY</code> on Vercel to fetch the full live catalog!
                     </p>
                   </div>
                 )}
