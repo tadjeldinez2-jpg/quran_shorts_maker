@@ -140,6 +140,18 @@ interface ControlPanelProps {
   onSeekAudio?: (time: number) => void;
 }
 
+const PEXELS_CATEGORIES = [
+  "All",
+  "Mountains",
+  "Ocean",
+  "Forest",
+  "Rain",
+  "Sky",
+  "Desert",
+  "Minimal",
+  "Abstract"
+];
+
 export default function ControlPanel({
   currentVerse,
   setCurrentVerse,
@@ -796,10 +808,17 @@ export default function ControlPanel({
   const [renderedFramesCount, setRenderedFramesCount] = useState<number>(0);
   const [exportFps, setExportFps] = useState<number>(30);
 
-  // Islamic-Friendly Built-In Background Library States
-  const [libraryCategory, setLibraryCategory] = useState<string>("All");
-  const [librarySearch, setLibrarySearch] = useState<string>("");
-  const [showFavoritesOnly, setShowFavoritesOnly] = useState<boolean>(false);
+  // Islamic-Friendly Built-In Background Library States (Pexels Dynamic API Browser)
+  const [pexelsSubTab, setPexelsSubTab] = useState<"library" | "upload">("library");
+  const [pexelsMediaType, setPexelsMediaType] = useState<"videos" | "photos">("videos");
+  const [pexelsQuery, setPexelsQuery] = useState("");
+  const [pexelsCategory, setPexelsCategory] = useState("All");
+  const [pexelsLoading, setPexelsLoading] = useState(false);
+  const [pexelsResults, setPexelsResults] = useState<any[]>([]);
+  const [pexelsError, setPexelsError] = useState("");
+  const [pexelsPage, setPexelsPage] = useState(1);
+  const [isPexelsKeyMissing, setIsPexelsKeyMissing] = useState(false);
+
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem("quran_shorts_media_favorites");
@@ -808,6 +827,73 @@ export default function ControlPanel({
       return [];
     }
   });
+
+  // Dynamic Pexels fetch effect to sync selected category / input queries
+  useEffect(() => {
+    let active = true;
+    const fetchPexels = async () => {
+      setPexelsLoading(true);
+      setPexelsError("");
+      try {
+        const url = `/api/pexels/search?category=${encodeURIComponent(pexelsCategory)}&query=${encodeURIComponent(pexelsQuery)}&mediaType=${pexelsMediaType}&page=${pexelsPage}&perPage=12`;
+        const res = await fetch(url);
+        if (!res.ok) {
+          throw new Error(`Proxy error: ${res.statusText}`);
+        }
+        const data = await res.json();
+        if (active) {
+          if (data.success) {
+            setPexelsResults(data.results || []);
+            setIsPexelsKeyMissing(!!data.usingFallback);
+          } else {
+            setPexelsError(data.error || "Failed to load backgrounds");
+          }
+        }
+      } catch (err: any) {
+        if (active) {
+          setPexelsError(err.message || "Request failed");
+        }
+      } finally {
+        if (active) {
+          setPexelsLoading(false);
+        }
+      }
+    };
+
+    // Debounce manual queries if typed
+    const handler = setTimeout(() => {
+      fetchPexels();
+    }, pexelsQuery.trim() !== "" ? 450 : 0);
+
+    return () => {
+      active = false;
+      clearTimeout(handler);
+    };
+  }, [pexelsCategory, pexelsMediaType, pexelsQuery, pexelsPage]);
+
+  // Selections utilities for dynamic phot/video links
+  const selectPexelsPhoto = (photoUrl: string, photographerName: string) => {
+    setUploadedImageUrl?.(photoUrl);
+    setUploadedVideoUrl(null);
+    setSelectedVideo({
+      id: "pexels-photo",
+      name: `Photo by ${photographerName}`,
+      category: "nature",
+      url: ""
+    });
+  };
+
+  const selectPexelsVideo = (videoFileUrl: string, userName: string) => {
+    setUploadedVideoUrl(videoFileUrl);
+    setUploadedImageUrl?.(null);
+    setSelectedVideo({
+      id: "pexels-video",
+      name: `Video by ${userName}`,
+      category: "nature",
+      url: videoFileUrl
+    });
+  };
+
 
   // Automatic Content Safety scanner states (Islamic Compliance Screening)
   const [isScanningCustomFile, setIsScanningCustomFile] = useState(false);
@@ -834,12 +920,6 @@ export default function ControlPanel({
     }
   };
 
-  const filteredBackgrounds = BUILTIN_BACKGROUNDS.filter(bg => {
-    const matchesCategory = libraryCategory === "All" || bg.category === libraryCategory;
-    const matchesSearch = bg.name.toLowerCase().includes(librarySearch.toLowerCase()) || bg.category.toLowerCase().includes(librarySearch.toLowerCase());
-    const matchesFavorites = !showFavoritesOnly || favorites.includes(bg.id);
-    return matchesCategory && matchesSearch && matchesFavorites;
-  });
 
   // Initialize Nasheed loop
   useEffect(() => {
@@ -2421,110 +2501,324 @@ export default function ControlPanel({
 
         {/* TAB 4: VISUAL BACKDROP */}
         {activeTab === "visuals" && (
-          <div className="space-y-4">
-            {/* Islamic Compliance Trust Indicator Banner / Upload Notice */}
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3.5 flex items-start gap-2.5">
-              <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5 animate-pulse" />
-              <div>
-                <span className="block text-xs font-bold text-emerald-300">Shariah-Friendly Custom Uploads</span>
-                <span className="block text-[10.5px] text-emerald-400/80 leading-relaxed mt-0.5">
-                  To maintain the sanctity of Quran recitation, please ensure your custom uploaded photo or video backgrounds are free of people, human silhouettes, faces, animated characters, or animals. Sourced nature, geometry, or abstract sky scenes are highly recommended. Use the uploader tool below to implement yours.
-                </span>
-              </div>
+          <div className="space-y-4 animate-fade-in">
+            {/* Sub-Tabs Selector */}
+            <div className="flex bg-slate-950 p-1 rounded-xl border border-white/5 gap-1 select-none">
+              <button
+                type="button"
+                onClick={() => setPexelsSubTab("library")}
+                className={`flex-1 py-1.5 text-xs font-semibold text-center rounded-lg transition-all duration-200 ${
+                  pexelsSubTab === "library"
+                    ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-sm"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                🔍 Pexels Infinite Library
+              </button>
+              <button
+                type="button"
+                onClick={() => setPexelsSubTab("upload")}
+                className={`flex-1 py-1.5 text-xs font-semibold text-center rounded-lg transition-all duration-200 ${
+                  pexelsSubTab === "upload"
+                    ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-sm"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                📤 Custom Uploader
+              </button>
             </div>
 
-            {/* Dynamic compliance checker or upload panels */}
-            <div>
-              <span className="block text-xs text-slate-400 mb-2 font-medium">Upload Custom Background Media</span>
-              
-              {isScanningCustomFile ? (
-                <div className="bg-slate-950/60 p-4 rounded-xl border border-dashed border-emerald-500/40 relative overflow-hidden transition-all duration-300">
-                  {/* Glowing scanning laser beam */}
-                  <div 
-                    className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#34d399]" 
-                    style={{
-                      top: `${scanProgress}%`,
-                    }} 
-                  />
+            {pexelsSubTab === "library" ? (
+              <div className="space-y-4 animate-fade-in">
+                {/* Media Selector & Search Bar */}
+                <div className="space-y-3 p-4 bg-slate-950/40 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-slate-300 font-bold uppercase tracking-wider">Pexels 9:16 Assets</span>
+                    <div className="flex gap-1 bg-slate-950 p-0.5 rounded-lg border border-white/5">
+                      <button
+                        type="button"
+                        onClick={() => { setPexelsMediaType("videos"); setPexelsPage(1); }}
+                        className={`px-2 py-0.5 text-[9.5px] rounded-md font-bold uppercase transition ${
+                          pexelsMediaType === "videos" ? "bg-emerald-500 text-white" : "text-zinc-500 hover:text-zinc-300"
+                        }`}
+                      >
+                        🎬 Videos
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setPexelsMediaType("photos"); setPexelsPage(1); }}
+                        className={`px-2 py-0.5 text-[9.5px] rounded-md font-bold uppercase transition ${
+                          pexelsMediaType === "photos" ? "bg-emerald-500 text-white" : "text-zinc-500 hover:text-zinc-300"
+                        }`}
+                      >
+                        📸 Photos
+                      </button>
+                    </div>
+                  </div>
 
-                  <div className="text-center py-4 relative z-10">
-                    {scanProgress < 100 ? (
-                      <>
-                        <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin mx-auto mb-3" />
-                        <span className="block text-xs font-bold text-emerald-300 uppercase tracking-widest">Shariah Compliance Scan Active</span>
-                        <span className="block text-[10px] text-slate-400 mt-1 font-mono">
-                          Analyzing visual parameters for facial shapes or living silhouettes... <span className="text-emerald-400 font-bold">{scanProgress}%</span>
-                        </span>
-                      </>
-                    ) : (
-                      <div className="animate-fade-in">
-                        {scanResult?.success ? (
+                  {/* Search input bar */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder={`Search high-quality Pexels vertical ${pexelsMediaType === 'videos' ? 'videos' : 'photos'}...`}
+                      value={pexelsQuery}
+                      onChange={(e) => { setPexelsQuery(e.target.value); setPexelsPage(1); }}
+                      className="w-full bg-slate-950 text-white border border-white/10 rounded-xl py-2 pl-9 pr-4 text-xs placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                    />
+                    <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-2.5" />
+                  </div>
+
+                  {/* Horizontal Scroll Categories */}
+                  <div className="flex gap-1.5 overflow-x-auto pb-1.5 scrollbar-thin scrollbar-thumb-white/10 select-none">
+                    {PEXELS_CATEGORIES.map((cat) => (
+                      <button
+                        type="button"
+                        key={cat}
+                        onClick={() => { setPexelsCategory(cat); setPexelsPage(1); }}
+                        className={`px-2.5 py-1 text-[10px] font-semibold rounded-full shrink-0 border transition ${
+                          pexelsCategory === cat
+                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                            : "bg-slate-950/40 text-zinc-400 border-white/5 hover:bg-slate-900"
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* API Key Missing Notice */}
+                {isPexelsKeyMissing && (
+                  <div className="bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3 flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <Info className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-bounce" />
+                      <span className="text-[10px] font-bold text-slate-300">Curated Library Active</span>
+                    </div>
+                    <p className="text-[9.5px] text-zinc-400 leading-normal">
+                      Pexels API key is not configured. We've loaded beautiful, Shariah-compliant 9:16 nature presets above. Configure <code className="text-emerald-400 font-semibold bg-emerald-500/10 px-1 py-0.5 rounded">PEXELS_API_KEY</code> to search the entire online catalog!
+                    </p>
+                  </div>
+                )}
+
+                {/* Grid Output */}
+                {pexelsLoading ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {Array.from({ length: 6 }).map((_, idx) => (
+                      <div key={idx} className="aspect-[9/16] bg-slate-950/60 animate-pulse rounded-xl border border-white/5 flex items-center justify-center">
+                        <RefreshCw className="w-4 h-4 text-emerald-500/25 animate-spin" />
+                      </div>
+                    ))}
+                  </div>
+                ) : pexelsError ? (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
+                    <span className="block text-[11px] font-bold text-red-400">Library Error</span>
+                    <span className="block text-[9.5px] text-zinc-400 mt-1">{pexelsError}</span>
+                  </div>
+                ) : pexelsResults.length === 0 ? (
+                  <div className="text-center py-8 bg-slate-950/20 rounded-xl border border-dashed border-white/5">
+                    <X className="w-6 h-6 text-zinc-600 mx-auto mb-1.5" />
+                    <span className="block text-[11px] font-semibold text-zinc-400">No Compliant Assets Found</span>
+                    <span className="block text-[9.5px] text-zinc-500 mt-0.5">Living creatures were screen-filtered. Try another query.</span>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      {pexelsResults.map((item) => {
+                        const isPhotoItem = !!item.src;
+                        const thumbUrl = isPhotoItem ? item.src?.medium : item.image;
+                        const isSelected = isPhotoItem 
+                          ? uploadedImageUrl === item.src?.original
+                          : uploadedVideoUrl === (item.video_files?.filter((vf: any) => vf.height > vf.width)[0]?.link || item.video_files?.[0]?.link);
+
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => {
+                              if (isPhotoItem && item.src) {
+                                selectPexelsPhoto(item.src.original, item.photographer);
+                              } else {
+                                const files = item.video_files?.filter((vf: any) => vf.height > vf.width) || [];
+                                const bestLink = files[0]?.link || item.video_files?.[0]?.link;
+                                if (bestLink) {
+                                  selectPexelsVideo(bestLink, item.user?.name || "Pexels Artist");
+                                }
+                              }
+                            }}
+                            className={`group relative aspect-[9/16] bg-slate-950 rounded-xl overflow-hidden cursor-pointer border transition-all hover:scale-[1.03] active:scale-95 ${
+                              isSelected ? "border-emerald-500 ring-2 ring-emerald-500/20 shadow-md" : "border-white/5 hover:border-emerald-500/40"
+                            }`}
+                          >
+                            {/* Card Display Thumbnail */}
+                            <img
+                              src={thumbUrl}
+                              referrerPolicy="no-referrer"
+                              alt={item.alt || "Background"}
+                              className="w-full h-full object-cover pointer-events-none"
+                            />
+
+                            {/* Hover overlay metadata */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent p-2 flex flex-col justify-between">
+                              <div className="flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    toggleFavorite(String(item.id), e);
+                                  }}
+                                  className="p-1 rounded-full bg-black/60 border border-white/5 hover:bg-black/95 text-zinc-300 hover:text-red-400 transition"
+                                >
+                                  <Heart className={`w-3 h-3 ${favorites.includes(String(item.id)) ? "fill-red-500 text-red-500" : ""}`} />
+                                </button>
+                              </div>
+                              <div>
+                                <span className="block text-[8px] text-zinc-300 font-medium font-sans truncate pr-1">
+                                  👤 {isPhotoItem ? item.photographer : (item.user?.name || "Artist")}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Choice Overlay status */}
+                            {isSelected && (
+                              <div className="absolute inset-0 bg-emerald-500/15 flex items-center justify-center pointer-events-none">
+                                <div className="p-1.5 rounded-full bg-emerald-500 shadow-md">
+                                  <Check className="w-3 text-white stroke-[2.5]" />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Simple Pagination Controls */}
+                    <div className="flex items-center justify-between pt-1 font-mono text-[10px] text-zinc-500">
+                      <button
+                        type="button"
+                        disabled={pexelsPage <= 1}
+                        onClick={() => setPexelsPage(prev => Math.max(1, prev - 1))}
+                        className="px-2 py-1 rounded bg-slate-950 border border-white/5 text-zinc-400 disabled:opacity-30 disabled:pointer-events-none hover:bg-slate-900 transition"
+                      >
+                        ← Prev
+                      </button>
+                      <span>PAGE {pexelsPage}</span>
+                      <button
+                        type="button"
+                        disabled={pexelsResults.length < 12}
+                        onClick={() => setPexelsPage(prev => prev + 1)}
+                        className="px-2 py-1 rounded bg-slate-950 border border-white/5 text-zinc-400 disabled:opacity-30 disabled:pointer-events-none hover:bg-slate-900 transition"
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4 animate-fade-in">
+                {/* Islamic Compliance Trust Indicator Banner / Upload Notice */}
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3.5 flex items-start gap-2.5">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5 animate-pulse" />
+                  <div>
+                    <span className="block text-xs font-bold text-emerald-300">Shariah-Friendly Custom Uploads</span>
+                    <span className="block text-[10.5px] text-emerald-400/80 leading-relaxed mt-0.5">
+                      To maintain the sanctity of Quran recitation, please ensure your custom uploaded photo or video backgrounds are free of people, human silhouettes, faces, animated characters, or animals. Sourced nature, geometry, or abstract sky scenes are highly recommended. Use the uploader tool below to implement yours.
+                    </span>
+                  </div>
+                </div>
+
+                {/* Dynamic compliance checker or upload panels */}
+                <div>
+                  <span className="block text-xs text-slate-400 mb-2 font-medium">Upload Custom Background Media</span>
+                  
+                  {isScanningCustomFile ? (
+                    <div className="bg-slate-950/60 p-4 rounded-xl border border-dashed border-emerald-500/40 relative overflow-hidden transition-all duration-300">
+                      {/* Glowing scanning laser beam */}
+                      <div 
+                        className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#34d399]" 
+                        style={{
+                          top: `${scanProgress}%`,
+                        }} 
+                      />
+
+                      <div className="text-center py-4 relative z-10">
+                        {scanProgress < 100 ? (
                           <>
-                            <ShieldCheck className="w-9 h-9 text-emerald-400 mx-auto mb-2.5 animate-bounce" />
-                            <span className="block text-xs font-bold text-emerald-400 uppercase tracking-widest">Compliance Approved</span>
-                            <p className="text-[10.5px] text-slate-300 mt-1 px-4 leading-relaxed">{scanResult.message}</p>
+                            <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin mx-auto mb-3" />
+                            <span className="block text-xs font-bold text-emerald-300 uppercase tracking-widest">Shariah Compliance Scan Active</span>
+                            <span className="block text-[10px] text-slate-400 mt-1 font-mono">
+                              Analyzing visual parameters for facial shapes or living silhouettes... <span className="text-emerald-400 font-bold">{scanProgress}%</span>
+                            </span>
                           </>
                         ) : (
-                          <>
-                            <div className="w-9 h-9 bg-red-500/15 rounded-full flex items-center justify-center text-red-500 mx-auto mb-2.5">
-                              <X className="w-5 h-5 stroke-[2.5]" />
-                            </div>
-                            <span className="block text-xs font-bold text-red-400 uppercase tracking-widest">Compliance Violation</span>
-                            <p className="text-[10.5px] text-slate-300 mt-1 px-4 leading-relaxed">{scanResult?.message}</p>
-                          </>
+                          <div className="animate-fade-in">
+                            {scanResult?.success ? (
+                              <>
+                                <ShieldCheck className="w-9 h-9 text-emerald-400 mx-auto mb-2.5 animate-bounce" />
+                                <span className="block text-xs font-bold text-emerald-400 uppercase tracking-widest">Compliance Approved</span>
+                                <p className="text-[10.5px] text-slate-300 mt-1 px-4 leading-relaxed">{scanResult.message}</p>
+                              </>
+                            ) : (
+                              <>
+                                <div className="w-9 h-9 bg-red-500/15 rounded-full flex items-center justify-center text-red-500 mx-auto mb-2.5">
+                                  <X className="w-5 h-5 stroke-[2.5]" />
+                                </div>
+                                <span className="block text-xs font-bold text-red-400 uppercase tracking-widest">Compliance Violation</span>
+                                <p className="text-[10.5px] text-slate-300 mt-1 px-4 leading-relaxed">{scanResult?.message}</p>
+                              </>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Video File Uploader */}
-                  <div className={`bg-slate-950/50 p-4 rounded-xl border border-dashed hover:border-emerald-500/40 transition text-center relative flex flex-col justify-between min-h-[140px] ${uploadedVideoUrl ? 'border-emerald-500 bg-emerald-500/5' : 'border-white/10'}`}>
-                    {uploadedVideoUrl && (
-                      <span className="absolute top-2 right-2 text-[9px] bg-emerald-500/15 text-emerald-400 font-mono px-1.5 py-0.5 rounded">Active</span>
-                    )}
-                    <div>
-                      <Upload className="w-5 h-5 text-emerald-400 mx-auto mb-1.5" />
-                      <span className="block text-white font-semibold text-xs mb-0.5">Custom Video</span>
-                      <span className="block text-[9px] text-slate-400 mb-2.5 leading-tight">Supports MP4, MOV, WebM loops</span>
                     </div>
-                    
-                    <label className="inline-block bg-emerald-600/90 hover:bg-emerald-500 text-white text-[11px] font-semibold py-1 px-2.5 rounded-lg cursor-pointer transition select-none self-center">
-                      Select Video
-                      <input
-                        type="file"
-                        accept="video/mp4,video/quicktime,video/webm"
-                        onChange={handleUserVideoUpload}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Video File Uploader */}
+                      <div className={`bg-slate-950/50 p-4 rounded-xl border border-dashed hover:border-emerald-500/40 transition text-center relative flex flex-col justify-between min-h-[140px] ${uploadedVideoUrl ? 'border-emerald-500 bg-emerald-500/5' : 'border-white/10'}`}>
+                        {uploadedVideoUrl && (
+                          <span className="absolute top-2 right-2 text-[9px] bg-emerald-500/15 text-emerald-400 font-mono px-1.5 py-0.5 rounded">Active</span>
+                        )}
+                        <div>
+                          <Upload className="w-5 h-5 text-emerald-400 mx-auto mb-1.5" />
+                          <span className="block text-white font-semibold text-xs mb-0.5">Custom Video</span>
+                          <span className="block text-[9px] text-slate-400 mb-2.5 leading-tight">Supports MP4, MOV, WebM loops</span>
+                        </div>
+                        
+                        <label className="inline-block bg-emerald-600/90 hover:bg-emerald-500 text-white text-[11px] font-semibold py-1 px-2.5 rounded-lg cursor-pointer transition select-none self-center">
+                          Select Video
+                          <input
+                            type="file"
+                            accept="video/mp4,video/quicktime,video/webm"
+                            onChange={handleUserVideoUpload}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
 
-                  {/* Photo Background Uploader */}
-                  <div className={`bg-slate-950/50 p-4 rounded-xl border border-dashed hover:border-emerald-500/40 transition text-center relative flex flex-col justify-between min-h-[140px] ${uploadedImageUrl ? 'border-emerald-500 bg-emerald-500/5' : 'border-white/10'}`}>
-                    {uploadedImageUrl && (
-                      <span className="absolute top-2 right-2 text-[9px] bg-emerald-500/15 text-emerald-400 font-mono px-1.5 py-0.5 rounded">Active</span>
-                    )}
-                    <div>
-                      <Image className="w-5 h-5 text-emerald-400 mx-auto mb-1.5" />
-                      <span className="block text-white font-semibold text-xs mb-0.5">Custom Photo / Image</span>
-                      <span className="block text-[9px] text-slate-400 mb-2.5 leading-tight">Supports JPG, PNG, WEBP, GIF</span>
+                      {/* Photo Background Uploader */}
+                      <div className={`bg-slate-950/50 p-4 rounded-xl border border-dashed hover:border-emerald-500/40 transition text-center relative flex flex-col justify-between min-h-[140px] ${uploadedImageUrl ? 'border-emerald-500 bg-emerald-500/5' : 'border-white/10'}`}>
+                        {uploadedImageUrl && (
+                          <span className="absolute top-2 right-2 text-[9px] bg-emerald-500/15 text-emerald-400 font-mono px-1.5 py-0.5 rounded">Active</span>
+                        )}
+                        <div>
+                          <Image className="w-5 h-5 text-emerald-400 mx-auto mb-1.5" />
+                          <span className="block text-white font-semibold text-xs mb-0.5">Custom Photo / Image</span>
+                          <span className="block text-[9px] text-slate-400 mb-2.5 leading-tight">Supports JPG, PNG, WEBP, GIF</span>
+                        </div>
+                        
+                        <label className="inline-block bg-emerald-600/90 hover:bg-emerald-500 text-white text-[11px] font-semibold py-1 px-2.5 rounded-lg cursor-pointer transition select-none self-center">
+                          Select Photo
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
+                            onChange={handleUserImageUpload}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
                     </div>
-                    
-                    <label className="inline-block bg-emerald-600/90 hover:bg-emerald-500 text-white text-[11px] font-semibold py-1 px-2.5 rounded-lg cursor-pointer transition select-none self-center">
-                      Select Photo
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/gif"
-                        onChange={handleUserImageUpload}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Video Adjustment Sliders */}
             <div className="bg-slate-950/40 p-4 rounded-xl border border-white/5 space-y-3.5">
