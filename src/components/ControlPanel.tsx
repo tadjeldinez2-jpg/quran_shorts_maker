@@ -831,27 +831,123 @@ export default function ControlPanel({
   // Dynamic Pexels fetch effect to sync selected category / input queries
   useEffect(() => {
     let active = true;
+
+    // Fast programmatically mapped local curate placeholders for static/offline/Vercel environments
+    const getClientFallbackResults = (catName: string, queryStr: string, mType: "videos" | "photos"): any[] => {
+      const isPhotos = mType === "photos";
+      
+      const photoMap: Record<string, { id: string, name: string, alt: string }[]> = {
+        "Mountains": [{ id: "photo-1454496522488-7a8e488e8606", name: "Sourced Mountains", alt: "Beautiful Snow Peaks" }],
+        "Ocean": [{ id: "photo-1505118380757-91f5f5632de0", name: "Aerial Waves", alt: "Ocean Sea Ripple" }],
+        "Forest": [{ id: "photo-1511497584788-876760111969", name: "Ethereal Pines", alt: "Misty Green Pine Forest" }],
+        "Rain": [{ id: "photo-1515694346937-94d85e41e6f0", name: "Ambient Rain", alt: "Raindrops On Window Glass" }],
+        "Sky": [{ id: "photo-1513002749550-c59d786b8e6c", name: "Sky Heights", alt: "Celestial White Clouds" }],
+        "Desert": [{ id: "photo-1509316975850-ff9c5deb0cd9", name: "Sahara Dunes", alt: "Desert Sand Hills" }],
+        "Minimal": [{ id: "photo-1518531933037-91b2f5f229cc", name: "Dark Leaves", alt: "Leafage Minimalist Forest" }],
+        "Abstract": [{ id: "photo-1541701494587-cb58502866ab", name: "Fluid Cosmos", alt: "Ethereal Dusk Swirl" }]
+      };
+
+      const videoMap: Record<string, { id: string, name: string }[]> = {
+        "Mountains": [{ id: "mixkit-aerial-view-of-snowy-mountain-peaks-shining-in-the-sun-41908-large.mp4", name: "Mixkit Mountains" }],
+        "Ocean": [{ id: "mixkit-top-view-of-waves-crashing-on-a-sandy-beach-41662-large.mp4", name: "Mixkit Ocean" }],
+        "Forest": [{ id: "mixkit-beautiful-aerial-view-of-a-dense-forest-and-mountains-41712-large.mp4", name: "Mixkit Forests" }],
+        "Rain": [{ id: "mixkit-rain-drops-on-a-window-pane-shining-with-lights-40019-large.mp4", name: "Mixkit Rain" }],
+        "Sky": [{ id: "mixkit-clouds-moving-fast-under-a-blue-sky-40294-large.mp4", name: "Mixkit Sky" }],
+        "Desert": [{ id: "mixkit-abstract-glowing-gold-particles-floating-in-the-dark-42838-large.mp4", name: "Celestial Dust" }],
+        "Minimal": [{ id: "371433846.sd.mp4?s=23ec2dbe34d5216d330fd0b3815e9e0ff9f91195&profile_id=165&oauth2_token_id=57447761", name: "Vimeo Particle Dust" }],
+        "Abstract": [{ id: "mixkit-abstract-glowing-gold-particles-floating-in-the-dark-42838-large.mp4", name: "Mixkit Abstract Glow" }]
+      };
+
+      if (isPhotos) {
+        let resultsList: any[] = [];
+        if (catName === "All") {
+          Object.keys(photoMap).forEach(key => {
+            resultsList.push(...photoMap[key]);
+          });
+        } else {
+          resultsList = photoMap[catName] || photoMap["Mountains"];
+        }
+
+        // Support simple keyword filter on name/alt
+        if (queryStr.trim() !== "") {
+          const q = queryStr.toLowerCase();
+          resultsList = resultsList.filter(item => item.name.toLowerCase().includes(q) || item.alt.toLowerCase().includes(q));
+        }
+
+        return resultsList.map((item, idx) => ({
+          id: `local-photo-${idx}-${item.id}`,
+          width: 1080,
+          height: 1920,
+          photographer: item.name,
+          alt: item.alt,
+          src: {
+            medium: `https://images.unsplash.com/${item.id}?auto=format&fit=crop&w=350&h=620&q=80`,
+            original: `https://images.unsplash.com/${item.id}?auto=format&fit=crop&w=1080&h=1920&q=80`
+          }
+        }));
+      } else {
+        let resultsList: any[] = [];
+        if (catName === "All") {
+          Object.keys(videoMap).forEach(key => {
+            resultsList.push(...videoMap[key]);
+          });
+        } else {
+          resultsList = videoMap[catName] || videoMap["Mountains"];
+        }
+
+        if (queryStr.trim() !== "") {
+          const q = queryStr.toLowerCase();
+          resultsList = resultsList.filter(item => item.name.toLowerCase().includes(q));
+        }
+
+        return resultsList.map((item, idx) => {
+          const isVimeo = item.id.includes("vimeo");
+          const videoUrl = isVimeo ? `https://player.vimeo.com/external/${item.id}` : `https://assets.mixkit.co/videos/preview/${item.id}`;
+          return {
+            id: `local-video-${idx}`,
+            width: 1080,
+            height: 1920,
+            url: videoUrl,
+            image: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=350&q=80",
+            user: { name: item.name },
+            video_files: [{ link: videoUrl, height: 1920, width: 1080 }]
+          };
+        });
+      }
+    };
+
     const fetchPexels = async () => {
       setPexelsLoading(true);
       setPexelsError("");
       try {
         const url = `/api/pexels/search?category=${encodeURIComponent(pexelsCategory)}&query=${encodeURIComponent(pexelsQuery)}&mediaType=${pexelsMediaType}&page=${pexelsPage}&perPage=12`;
         const res = await fetch(url);
-        if (!res.ok) {
-          throw new Error(`Proxy error: ${res.statusText}`);
+        
+        let responseData;
+        if (res.ok) {
+          responseData = await res.json();
+        } else {
+          console.warn("[Pexels Proxy API] Service route responded with error. Deploy mode: static client sandbox fallback active.");
+          responseData = {
+            success: true,
+            results: getClientFallbackResults(pexelsCategory, pexelsQuery, pexelsMediaType),
+            usingFallback: true
+          };
         }
-        const data = await res.json();
+
         if (active) {
-          if (data.success) {
-            setPexelsResults(data.results || []);
-            setIsPexelsKeyMissing(!!data.usingFallback);
+          if (responseData.success) {
+            setPexelsResults(responseData.results || []);
+            setIsPexelsKeyMissing(!!responseData.usingFallback);
           } else {
-            setPexelsError(data.error || "Failed to load backgrounds");
+            setPexelsError(responseData.error || "Failed to load backgrounds");
           }
         }
       } catch (err: any) {
+        console.warn("[Pexels Proxy API] Fetch exception caught. Activating resilient dynamic client library fallbacks.", err);
         if (active) {
-          setPexelsError(err.message || "Request failed");
+          setPexelsResults(getClientFallbackResults(pexelsCategory, pexelsQuery, pexelsMediaType));
+          setIsPexelsKeyMissing(true);
         }
       } finally {
         if (active) {
